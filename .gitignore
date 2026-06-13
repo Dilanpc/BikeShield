@@ -1,0 +1,12 @@
+*.bak
+*.log
+*.jdi
+*.rpt
+*.vwf
+.qsys_edit/
+output_files/
+simulation/
+db/
+incremental_db/
+
+
