@@ -9,6 +9,7 @@ module i2c_master (
 	input wire [2:0] restart_pos,  // Después de cuál byte se hace restart. 7 para no hacer restart
 	
 	input wire [2:0] data_amount, // 0 cuenta como 1 byte, 1 como 2 bytes...
+	input wire [7:0] read_amount, // Cantidad de bytes a leer, 0 cuenta como 1 byte, 1 como 2 bytes...
 	input wire [2:0] data_rw, // Después de cuál byte iniciar lectura. 7 para solo escribir, el primer byte siempre se escribe (dirección)
 	input wire [63:0] data_in, // Hasta 8 bytes. Primer byte es dirección + R/W
 	output reg [8:0] data_out = 0, // bit 8 indica que el byte está listo
@@ -45,15 +46,16 @@ module i2c_master (
 	// scl parametrers
 	reg scl_active = 0;
 	reg prev_scl = 1;
-	reg [26:0] scl_cnt = 0;
+	reg [26:0] scl_cnt = 0; // Debug
+	// reg [7:0] scl_cnt = 0;
 	localparam MAX_SCL_CNT = 50_000_000; // Debug
 	// localparam MAX_SCL_CNT = 250;
 	
 	
 	// bytes
-	reg [2:0] current_byte = 1'b0;
+	reg [2:0] current_byte = 1'b0; // Para datos enviados
 	reg [2:0] bit_index = 3'd111;
-	
+	reg [7:0] current_read_byte = 1'b0; // Para datos recibidos
 
 	// Restart parametrers
 	reg restart_done = 0;
@@ -107,6 +109,7 @@ module i2c_master (
 			state <= START;
 			error <= 0;
 			current_byte <= 1'b0;
+			current_read_byte <= 1'b0;
 			restart_done <= 0;
 			stop_reading_flag <= 0;
 			busy <= 1;
@@ -181,7 +184,7 @@ module i2c_master (
 					ack <= ~(sda);
 					if (sda) begin // NACK
 						error <= 1;
-						state <= IDLE;
+						state <= STOP0;
 					end
 					else begin
 						state <= NEXT_BYTE0;
@@ -225,14 +228,18 @@ module i2c_master (
 			
 			READ_BYTE: begin
 				if (scl & ~prev_scl) begin // Esperar posedge scl
-					data_out[8] <= 0; // Indicar que el byte no está listo
-					ack <= 0;
-					data_out[bit_index] <= sda;
-					bit_index <= bit_index - 1;
-					if (bit_index == 1'b0) begin
+					if (bit_index == 1'b0) begin // Pasar a ACK
+						data_out[0] <= sda;
 						bit_index <= 3'd7;
+						current_read_byte <= current_read_byte + 1'b1;
 						state <= SEND_ACK0;
 						data_out[8] <= 1; // Indicar que el byte está listo
+						
+					end else begin
+						data_out[8] <= 0; // Indicar que el byte no está listo
+						ack <= 0;
+						data_out[bit_index] <= sda;
+						bit_index <= bit_index - 1;
 					end
 				end
 			
@@ -242,7 +249,9 @@ module i2c_master (
 			
 			SEND_ACK0: begin // Preparar ACK
 				if (~scl & prev_scl) begin // Esperar negedge scl
-					if (stop_reading_flag) begin // Detener lectura: enviar NACK
+					if (stop_reading_flag ||
+						current_read_byte > read_amount ||
+						current_read_byte == 0) begin // Detener lectura: enviar NACK
 						ack <= 0; // Enviar NACK
 						sda_low <= 0; // Soltar sda
 					end else begin
@@ -281,6 +290,7 @@ module i2c_master (
 				if (scl_cnt == MAX_SCL_CNT) begin
 					sda_low <= 0; // Soltar sda
 					scl_cnt <= 0;
+					ack <= 0;
 					state <= IDLE;
 					busy <= 0;
 				end else
