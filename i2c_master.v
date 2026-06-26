@@ -17,15 +17,17 @@ module i2c_master (
 	
 	output reg ack = 0,
 	output reg error = 0,
-	output reg busy = 0,
+	output reg busy = 0
 	
-	output wire [3:0] leds // Debug
+	// output wire [3:0] leds // Debug
 
 	);
 	
-	assign leds[3] = ~sda;
-	assign leds[2:1] = 2'b11;
-	assign leds[0] = ~scl;
+	// Debug
+	// assign leds[3] = ~scl;
+	// assign leds[2] = ~sda;
+	// assign leds[1] = ~start;
+	// assign leds[0] = ~busy;
 	
 	
 	reg prev_start = 0;
@@ -46,10 +48,10 @@ module i2c_master (
 	// scl parametrers
 	reg scl_active = 0;
 	reg prev_scl = 1;
-	reg [26:0] scl_cnt = 0; // Debug
-	// reg [7:0] scl_cnt = 0;
-	localparam MAX_SCL_CNT = 50_000_000; // Debug
-	// localparam MAX_SCL_CNT = 250;
+	// reg [26:0] scl_cnt = 0; // Debug
+	reg [7:0] scl_cnt = 0;
+	// localparam MAX_SCL_CNT = 1_000_000; // Debug
+	localparam MAX_SCL_CNT = 250;
 	
 	
 	// bytes
@@ -266,7 +268,7 @@ module i2c_master (
 			SEND_ACK1: begin
 				if (~scl & prev_scl) begin // Esperar negedge scl
 					sda_low <= 0; // Soltar sda
-					if (ack) begin
+					if (ack) begin // Continuar leyendo
 						state <= READ_BYTE;
 					end else
 					begin
