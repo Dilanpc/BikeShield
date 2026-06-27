@@ -6,11 +6,11 @@
 
 #### Memoria EEPROM
 - [X] Comunicación I2C
-- [ ] Controlador
+- [X] Controlador
 
 #### Acelerómetro MPU
 - [X] Comunicación I2C
-- [ ] Controlador
+- [X] Controlador
 
 #### Teclado numérico
 - [ ] Controlador

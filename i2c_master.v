@@ -17,7 +17,7 @@ module i2c_master (
 	
 	output reg ack = 0,
 	output reg error = 0,
-	output reg busy = 0
+	output wire busy
 	
 	// output wire [3:0] leds // Debug
 
@@ -50,13 +50,13 @@ module i2c_master (
 	reg prev_scl = 1;
 	// reg [26:0] scl_cnt = 0; // Debug
 	reg [7:0] scl_cnt = 0;
-	// localparam MAX_SCL_CNT = 1_000_000; // Debug
+	// localparam MAX_SCL_CNT = 10_000_000; // Debug
 	localparam MAX_SCL_CNT = 250;
 	
 	
 	// bytes
 	reg [2:0] current_byte = 1'b0; // Para datos enviados
-	reg [2:0] bit_index = 3'd111;
+	reg [2:0] bit_index = 3'b111;
 	reg [7:0] current_read_byte = 1'b0; // Para datos recibidos
 
 	// Restart parametrers
@@ -83,7 +83,7 @@ module i2c_master (
 	
 	reg [7:0] state = IDLE;
 	
-	
+	assign busy = (state != IDLE);
 	
 	
 	always @(posedge clk) begin
@@ -107,15 +107,7 @@ module i2c_master (
 		
 		// start
 		prev_start <= start;
-		if (start & ~prev_start & ~busy) begin
-			state <= START;
-			error <= 0;
-			current_byte <= 1'b0;
-			current_read_byte <= 1'b0;
-			restart_done <= 0;
-			stop_reading_flag <= 0;
-			busy <= 1;
-		end
+		
 		
 		// Reading stop
 		prev_stop_reading <= stop_reading;
@@ -126,7 +118,14 @@ module i2c_master (
 		
 		case(state)
 			IDLE: begin
-			
+				if (start & ~prev_start) begin
+					state <= START;
+					error <= 0;
+					current_byte <= 1'b0;
+					current_read_byte <= 1'b0;
+					restart_done <= 0;
+					stop_reading_flag <= 0;
+				end
 			end
 			
 			START: begin // Eperar medio ciclo para asegurar que el dispositivo detecte el start
@@ -139,7 +138,7 @@ module i2c_master (
 
 					ack <= 0;
 
-					bit_index <= 3'd111;
+					bit_index <= 3'b111;
 					
 					if (restart_done) begin // Continuar con secuencia luego del restart
 						state <= NEXT_BYTE0;
@@ -164,7 +163,7 @@ module i2c_master (
 				if (~scl & prev_scl) begin // Esperar negedge scl
 					ack <= 0;
 					sda_low <= ~data_to_send[bit_index];
-					bit_index <= bit_index - 1;
+					bit_index <= bit_index - 1'b1;
 					if (bit_index == 1'b0) begin
 						bit_index <= 3'd7;
 						state <= GET_ACK0;
@@ -241,7 +240,7 @@ module i2c_master (
 						data_out[8] <= 0; // Indicar que el byte no está listo
 						ack <= 0;
 						data_out[bit_index] <= sda;
-						bit_index <= bit_index - 1;
+						bit_index <= bit_index - 1'b1;
 					end
 				end
 			
@@ -294,7 +293,6 @@ module i2c_master (
 					scl_cnt <= 0;
 					ack <= 0;
 					state <= IDLE;
-					busy <= 0;
 				end else
 				begin
 					scl_cnt <= scl_cnt + 1'b1;
