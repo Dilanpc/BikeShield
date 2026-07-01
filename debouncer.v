@@ -1,42 +1,27 @@
 module debouncer (
     input  wire clk,
     input  wire rst,
-    input  wire boton,
-    output wire pulso
+    input  wire raw,
+    output reg clean
 );
 
 
-    reg estado_prev;
-	 reg estado_estable;
-    
-	 reg [21:0] count = 0;
-	 always @(posedge clk)
-	 begin
-		if (boton)
-		begin
-			if (count > 2_500_000)
-			begin
-				estado_estable <= 1'b1;
+	reg [21:0] count = 0;
+	always @(posedge clk) begin
+		if (raw) begin
+			if (count > 2_500_000) begin // 50 ms
+				clean <= 1'b1;
 				count <= 0;
 			end
 			else
 				count <= count + 1'b1;
 		end
-		else
-			estado_estable <= 0;
-	 end
+		else begin
+			count <= 0;
+			clean <= 0;
+		end
+	end
 	 
 
-
-
-    always @(posedge clk) begin
-        if (rst)
-            estado_prev <= 1'b0;
-        else
-            estado_prev <= estado_estable;
-    end
-
-    // Pulso de un ciclo al presionar
-    assign pulso = estado_estable & ~estado_prev;
 
 endmodule
