@@ -12,7 +12,6 @@ module eeprom_driver (
 
 	// i2c master interface
 	output reg start,
-	output reg stop_reading,
 	output reg [2:0] restart_pos,
 	output reg [2:0] data_amount,
 	output reg [7:0] read_amount,
@@ -72,7 +71,6 @@ module eeprom_driver (
 		if (rst) begin
 			state <= IDLE;
 			start <= 1'b0;
-			stop_reading <= 1'b0;
 			restart_pos <= 3'd7;
 		end else begin
 			prev_enable <= enable;
@@ -98,7 +96,6 @@ module eeprom_driver (
 					if (~i2c_busy) begin
 						// Preparar la lectura de la contraseña
 						start <= 1'b1;
-						stop_reading <= 1'b0;
 						restart_pos <= 3'd2;
 						data_amount <= 3'd3; // Enviar 4 bytes (menos 1)
 						read_amount <= 8'd1; // Leer 2 bytes (menos 1) (contraseña de 4 dígitos)
@@ -132,7 +129,6 @@ module eeprom_driver (
 					if (~i2c_busy) begin
 						// Preparar la escritura de la contraseña
 						start <= 1'b1;
-						stop_reading <= 1'b0;
 						restart_pos <= 3'd7; // No hacer restart
 						data_amount <= 3'd4; // Escribir 5 bytes (menos 1)
 						read_amount <= 8'd0; // No leer nada
@@ -153,6 +149,7 @@ module eeprom_driver (
 
 				WAIT1: begin
 					if (wait_counter == MAX_WAIT_COUNTER) begin // Esperar a que la memoria eeprom escriba los datos
+						password_out <= password_in; // Actualizar la contraseña leída con la nueva contraseña
 						state <= IDLE;
 						wait_counter <= 0;
 					end
