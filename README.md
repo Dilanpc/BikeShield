@@ -2,7 +2,7 @@
 
 #### Pantalla LCD
 - [X] Comunicación paralela
-- [ ] Controlador
+- [X] Controlador
 
 #### Memoria EEPROM
 - [X] Comunicación I2C
@@ -13,7 +13,7 @@
 - [X] Controlador
 
 #### Teclado numérico
-- [ ] Controlador
+- [X] Controlador
 
 #### Sensor de continuidad
 - [ ] Controlador
