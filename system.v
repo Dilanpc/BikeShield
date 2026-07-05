@@ -51,6 +51,7 @@ module system (
 	reg [2:0] sensitivity_temp = 0; // Sensitivity meanwhile the user selects the sensitivity value
 	reg [15:0] pass_sens_in = 16'hFFFF; // Input for the eemprom, password or sensitivity to be written
 	wire [15:0] password; // Password read from eeprom or eeprom
+	reg [15:0] password_temp = 0; // Password meanwhile the user enters the new password
 	wire [2:0] sensitivity; // Sensitivity value read from eeprom
 
 	localparam I2C_INIT = 3'd0;
@@ -76,6 +77,7 @@ module system (
 		// 8: SELECT SET PASSWORD
 		// 9: FEEDBACK_PASSWORD
 		// 10: FEEDBACK_SENSITIVITY
+		// 11: PASSWORDS_DO_NOT_MATCH
 
 	reg [31:0] lcd_data = 0; // Additional data for instructions that require it. Keep until done
 	reg lcd_enable = 0;
@@ -92,6 +94,7 @@ module system (
 	localparam LCD_SELECT_SET_PASSWORD = 4'd8;
 	localparam LCD_FEEDBACK_PASSWORD = 4'd9;
 	localparam LCD_FEEDBACK_SENSITIVITY = 4'd10;
+	localparam LCD_PASSWORDS_DO_NOT_MATCH = 4'd11;
 
 
 	// Keyboard ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -102,10 +105,10 @@ module system (
 
 
 	// Other registers
-	localparam INITIAL_WAIT = 50_000_000;
-	localparam INCORRECT_WAIT = 50_000_000; // 1 second
-	localparam CORRECT_WAIT = 50_000_000; // 1 second
-	localparam INCORRECT_WAIT_NO_TRIES = 500_000_000; // 10 second
+	localparam INITIAL_WAIT = 29'd50_000_000;
+	localparam INCORRECT_WAIT = 29'd50_000_000; // 1 second
+	localparam CORRECT_WAIT = 29'd50_000_000; // 1 second
+	localparam INCORRECT_WAIT_NO_TRIES = 29'd500_000_000; // 10 second
 
 
 	reg [28:0] counter = 0;
@@ -117,25 +120,26 @@ module system (
 	
 
 	// STATE
-	localparam INIT0 = 4'd0;
-	localparam INIT1 = 4'd1;
-	localparam INIT2 = 4'd2;
-	localparam WAIT  = 4'd3;
-	localparam LOCKED_IDLE = 4'd4;
-	localparam UNLOCKED_IDLE_SELECTION   = 4'd5;
-	localparam UNLOCKED_IDLE_SENSITIVITY = 4'd6;
-	localparam SHOW_NEW_SENSITIVITY = 4'd7;
-	localparam SAVE_SENSITIVITY = 4'd8;
-	localparam UNLOCKED_IDLE_SET_PASSWORD = 4'd9;
-	localparam CONFIRM_PASSWORD = 4'd10;
-	localparam LOAD_NEW_PASSWORD = 4'd11;
-	localparam CHECK_PASSWORD = 4'd12;
-	localparam CORRECT   = 4'd13;
-	localparam INCORRECT = 4'd14;
+	localparam INIT0 = 5'd0;
+	localparam INIT1 = 5'd1;
+	localparam INIT2 = 5'd2;
+	localparam WAIT  = 5'd3;
+	localparam LOCKED_IDLE = 5'd4;
+	localparam UNLOCKED_IDLE_SELECTION   = 5'd5;
+	localparam UNLOCKED_IDLE_SENSITIVITY = 5'd6;
+	localparam SHOW_NEW_SENSITIVITY = 5'd7;
+	localparam SAVE_SENSITIVITY = 5'd8;
+	localparam UNLOCKED_IDLE_SET_PASSWORD = 5'd9;
+	localparam CONFIRM_PASSWORD = 5'd10;
+	localparam VERIFY_NEW_PASSWORD = 5'd11;
+	localparam NEW_PASSWORD_FEEDBACK = 5'd12;
+	localparam CHECK_PASSWORD = 5'd13;
+	localparam CORRECT   = 5'd14;
+	localparam INCORRECT = 5'd15;
 
 
-	reg [3:0] state = INIT0;
-	reg [3:0] next_state = INIT0;
+	reg [4:0] state = INIT0;
+	reg [4:0] next_state = INIT0;
 
 
 	// DEBUG CLK
@@ -394,7 +398,7 @@ module system (
 								end
 								2'd2: begin 
 									lcd_data <= "#___";
-									current_digit <= 2'd3;
+									current_digit <= 2'd1;
 								end
 								2'd3: begin 
 									lcd_data <= "##__";
@@ -442,12 +446,103 @@ module system (
 				end
 
 				CONFIRM_PASSWORD: begin // Confirm new password
+					alarm <= 1'b0; // Reset alarm
+					tries <= 2'd3; // Reset tries
+					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+						if (key == 4'd11) begin // '#' key to delete
+							lcd_instruction <= LCD_CONFIRM_PASSWORD;
+							lcd_enable <= 1'b1;
+							state <= WAIT;
+							next_state <= CONFIRM_PASSWORD;
+							case (current_digit)
+								2'd0: lcd_data <= "____";
+								2'd1:  begin 
+									lcd_data <= "____";
+									current_digit <= 2'd0;
+								end
+								2'd2: begin 
+									lcd_data <= "#___";
+									current_digit <= 2'd1;
+								end
+								2'd3: begin 
+									lcd_data <= "##__";
+									current_digit <= 2'd2;
+								end
+							endcase
+
+						end else if (key == 4'd10) begin // '*' key to cancel and return to selection
+							lcd_instruction <= LCD_SELECT_SET_PASSWORD;
+							lcd_enable <= 1'b1;
+							state <= WAIT;
+							next_state <= UNLOCKED_IDLE_SELECTION;
+							current_digit <= 0;
+
+						end else begin
+							lcd_instruction <= LCD_CONFIRM_PASSWORD;
+							lcd_enable <= 1'b1;
+							state <= WAIT;
+							next_state <= CONFIRM_PASSWORD;
+							case (current_digit)
+								2'd0: begin
+									password_temp[15:12] <= key;
+									lcd_data <= "#___";
+									current_digit <= 2'd1;
+								end
+								2'd1: begin
+									password_temp[11:8] <= key;
+									lcd_data <= "##__";
+									current_digit <= 2'd2;
+								end
+								2'd2: begin
+									password_temp[7:4] <= key;
+									lcd_data <= "###_";
+									current_digit <= 2'd3;
+								end
+								2'd3: begin
+									password_temp[3:0] <= key;
+									lcd_enable <= 1'b0; // No update lcd until checking password
+									next_state <= VERIFY_NEW_PASSWORD;
+									current_digit <= 0;
+								end
+							endcase
+						end
+					end
+				end
+
+				VERIFY_NEW_PASSWORD: begin
+					if (password_temp == pass_sens_in) begin // Passwords match
+						// LCD
+						lcd_instruction <= LCD_FEEDBACK_PASSWORD;
+						lcd_enable <= 1'b1;
+
+						// I2C
+						i2c_command <= I2C_CHANGE_PASSWORD;
+						i2c_enable <= 1'b1;
+
+						state <= WAIT;
+						next_state <= NEW_PASSWORD_FEEDBACK;
+						counter <= 0;
+					end else begin // Passwords do not match
+						lcd_instruction <= LCD_PASSWORDS_DO_NOT_MATCH;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= NEW_PASSWORD_FEEDBACK;
+					end
+				end
+
+				NEW_PASSWORD_FEEDBACK: begin // Show message for a second and return to selection
+					if (counter > CORRECT_WAIT) begin
+						lcd_instruction <= LCD_SELECT_SET_PASSWORD;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= UNLOCKED_IDLE_SELECTION;
+						counter <= 0;
+					end else begin
+						counter <= counter + 1'b1;
+					end
 					
 				end
 
-				LOAD_NEW_PASSWORD: begin
-					
-				end
 
 				CHECK_PASSWORD: begin
 					lcd_enable <= 1'b1;

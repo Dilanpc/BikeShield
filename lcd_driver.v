@@ -10,6 +10,7 @@
 // 8: SELECT SET PASSWORD
 // 9: FEEDBACK_PASSWORD
 // 10: FEEDBACK_SENSITIVITY
+// 11: PASSWORDS_DO_NOT_MATCH
 
 
 module lcd_driver (
@@ -48,7 +49,6 @@ module lcd_driver (
 	reg prev_ready = 0;
 	reg [4:0] counter = 5'b0;
 
-	assign done = (state == IDLE) && ~(enable && ~prev_enable);
 
 
 	// STATES
@@ -64,12 +64,15 @@ module lcd_driver (
 	localparam CONFIRM_PASSWORD = 4'd9;
 	localparam FEEDBACK_PASSWORD = 4'd10;
 	localparam FEEDBACK_SENSITIVITY = 4'd11;
-	localparam CLEAR = 4'd12;
-	localparam WAIT = 4'd13;
+	localparam PASSWORDS_DO_NOT_MATCH = 4'd12;
+	localparam CLEAR = 4'd13;
+	localparam WAIT = 4'd14;
 
 
 	reg [3:0] state = IDLE;
 	reg [3:0] next_state = IDLE;
+
+	assign done = (state == IDLE) && ~(enable && ~prev_enable);
 
 	always @(posedge clk or posedge rst) begin
 		if (rst) begin
@@ -91,52 +94,50 @@ module lcd_driver (
 							1: begin // AUTHENTICATION
 								state <= CLEAR;
 								next_state <= AUTHENTICATION;
-								awake <= 1;
 							end
 							2: begin // UNLOCKED
 								state <= CLEAR;
 								next_state <= UNLOCKED;
-								awake <= 1;
 							end
 							3: begin // INCORRECT
 								state <= CLEAR;
 								next_state <= INCORRECT;
-								awake <= 1;
 							end
 							4: begin // SET SENSITIVITY
 								state <= CLEAR;
 								next_state <= SENSITIVITY0;
-								awake <= 1;
 							end
 							5: begin // SELECTION SET SENSITIVITY
 								state <= CLEAR;
 								next_state <= SELECT_SENSITIVITY;
-								awake <= 1;
 							end
 							6: begin // SET PASSWORD
 								state <= CLEAR;
 								next_state <= SET_PASSWORD;
-								awake <= 1;
 							end
 							7: begin // CONFIRM PASSWORD
 								state <= CLEAR;
 								next_state <= CONFIRM_PASSWORD;
-								awake <= 1;
 							end
 							8: begin // SELECTION SET PASSWORD
 								state <= CLEAR;
 								next_state <= SELECT_SET_PASSWORD;
-								awake <= 1;
 							end
 							9: begin // FEEDBACK PASSWORD
 								state <= CLEAR;
 								next_state <= FEEDBACK_PASSWORD;
-								awake <= 1;
 							end
 							10: begin // FEEDBACK SENSITIVITY
 								state <= CLEAR;
 								next_state <= FEEDBACK_SENSITIVITY;
-								awake <= 1;
+							end
+							11: begin // PASSWORDS_DO_NOT_MATCH
+								state <= CLEAR;
+								next_state <= PASSWORDS_DO_NOT_MATCH;
+							end
+
+							default: begin
+								awake <= 0; // Cancel operation
 							end
 						endcase
 					end
@@ -193,7 +194,9 @@ module lcd_driver (
 								next_state <= IDLE;
 							end
 
-							
+							default: begin
+								counter <= 0;
+							end
 						endcase
 						
 					end
@@ -224,6 +227,10 @@ module lcd_driver (
 								lcd_data <= "D";
 								counter <= 0;
 								next_state <= IDLE;
+							end
+
+							default: begin
+								counter <= 0;
 							end
 						endcase
 					end
@@ -263,6 +270,10 @@ module lcd_driver (
 								lcd_data <= "D";
 								counter <= 0;
 								next_state <= IDLE;
+							end
+
+							default: begin
+								counter <= 0;
 							end
 						endcase
 					end
@@ -317,6 +328,9 @@ module lcd_driver (
 								counter <= 0;
 							end
 
+							default: begin
+								counter <= 0;
+							end
 						endcase
 					end
 				end
@@ -388,7 +402,9 @@ module lcd_driver (
 								next_state <= IDLE;
 							end
 
-							
+							default: begin
+								counter <= 0;
+							end
 						endcase
 						
 					end
@@ -436,6 +452,9 @@ module lcd_driver (
 								next_state <= IDLE;
 							end
 
+							default: begin
+								counter <= 0;
+							end
 							
 						endcase
 						
@@ -476,7 +495,9 @@ module lcd_driver (
 								next_state <= IDLE;
 							end
 
-							
+							default: begin
+								counter <= 0;
+							end
 						endcase
 						
 					end
@@ -532,6 +553,9 @@ module lcd_driver (
 								next_state <= IDLE;
 							end
 
+							default: begin
+								counter <= 0;
+							end
 							
 						endcase
 						
@@ -574,6 +598,10 @@ module lcd_driver (
 								lcd_data <= "D";
 								counter <= 0;
 								next_state <= IDLE;
+							end
+
+							default: begin
+								counter <= 0;
 							end
 						endcase
 					end
@@ -619,6 +647,62 @@ module lcd_driver (
 								lcd_data <= "D";
 								counter <= 0;
 								next_state <= IDLE;
+							end
+
+							default: begin
+								counter <= 0;
+							end
+						endcase
+					end
+				end
+
+
+
+				PASSWORDS_DO_NOT_MATCH: begin
+					if (ready) begin
+						counter <= counter + 1'b1;
+						is_command <= 0;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= PASSWORDS_DO_NOT_MATCH;
+
+						case (counter)
+							5'd0: begin
+								lcd_data  <= 8'h82; // Set position 
+								is_command <= 1'b1;
+							end
+							5'd1: lcd_data <= "P";
+							5'd2: lcd_data <= "A";
+							5'd3: lcd_data <= "S";
+							5'd4: lcd_data <= "S";
+							5'd5: lcd_data <= "W";
+							5'd6: lcd_data <= "O";
+							5'd7: lcd_data <= "R";
+							5'd8: lcd_data <= "D";
+							5'd9: lcd_data <= "S";
+							5'd10: lcd_data <= " ";
+							5'd11: lcd_data <= "D";
+							5'd12: lcd_data <= "O";
+							5'd13: begin
+								lcd_data <= 8'hC3; // Set position
+								is_command <= 1'b1;
+							end
+							5'd14: lcd_data <= "N";
+							5'd15: lcd_data <= "O";
+							5'd16: lcd_data <= "T";
+							5'd17: lcd_data <= " ";
+							5'd18: lcd_data <= "M";
+							5'd19: lcd_data <= "A";
+							5'd20: lcd_data <= "T";
+							5'd21: lcd_data <= "C";
+							5'd22: begin
+								lcd_data <= "H";
+								counter <= 0;
+								next_state <= IDLE;
+							end
+
+							default: begin
+								counter <= 0;
 							end
 						endcase
 					end
