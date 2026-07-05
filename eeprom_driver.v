@@ -1,8 +1,10 @@
 /*
 
 INSTRUCTION SET
-1: Read password
-2: Write password
+0: Read password
+1: Write password
+2: Read sensitivity
+3: Write sensitivity
 */
 
 
@@ -24,10 +26,11 @@ module eeprom_driver (
 	// User
 	input [1:0] instruction,
 	input enable,
-	output reg done = 1,
+	output wire done,
 
-	input [15:0] password_in, // 4 digitos. Cada digito 4 bits
-	output reg [15:0] password_out = 0 // 4 digits password (decimal)
+	input [15:0] in, // 4 digitos. Cada digito 4 bits
+	output reg [15:0] password_out = 0, // 4 digits password (decimal)
+	output reg [2:0] sensitivity_out = 0 // Sensitivity value (0 to 7)
 
 	// Debug
 	// output wire [3:0] leds
@@ -38,12 +41,18 @@ module eeprom_driver (
 
 	// Dirección de memoria donde se guarda la contraseña (928 = 0x03A0)
 	// Correspondiente a la página 29 de la memoria eeprom
-	localparam PASSWORD_ADD = 16'h03A0; 
+	localparam PASSWORD_ADD = 16'h03A0; // Página 29
+	localparam SENSITIVITY_ADD = 16'h0C40; // Página 28
 
 
 	// Registros
 	reg prev_enable = 0;
 	reg prev_i2c_busy = 0;
+
+	reg [15:0] address = 0; // Dirección de memoria donde se guarda contraseña o sensibilidad
+
+	reg sensitivity_action = 0; // Flag to indicate if the action is related to sensitivity (1) or password (0)
+
 	// Data
 	wire data_ready = i2c_result[8];
 	reg prev_data_ready = 0;
@@ -64,6 +73,7 @@ module eeprom_driver (
 	reg [2:0] state = IDLE;
 
 
+	assign done = (state == IDLE) && ~(enable && ~prev_enable); // Done when in IDLE and enable signal is not active
 
 
 	always @(posedge clk or posedge rst) begin
@@ -80,12 +90,28 @@ module eeprom_driver (
 
 			case (state)
 				IDLE: begin
-					done <= 1'b1;
 					if (enable && ~prev_enable) begin
-						done <= 1'b0;
 						case (instruction)
-							2'd1: state <= READ0; // load password
-							2'd2: state <= WRITE; // Change password
+							2'd0: begin
+								address <= PASSWORD_ADD;
+								sensitivity_action <= 1'b0;
+								state <= READ0; // load password
+							end
+							2'd1: begin
+								address <= PASSWORD_ADD;
+								sensitivity_action <= 1'b0;
+								state <= WRITE; // Change password
+							end
+							2'd2: begin
+								address <= SENSITIVITY_ADD;
+								sensitivity_action <= 1'b1;
+								state <= READ0; // Read sensitivity
+							end
+							2'd3: begin
+								address <= SENSITIVITY_ADD;
+								sensitivity_action <= 1'b1;
+								state <= WRITE; // Write sensitivity
+							end
 						endcase
 					end
 				end
@@ -98,10 +124,14 @@ module eeprom_driver (
 						start <= 1'b1;
 						restart_pos <= 3'd2;
 						data_amount <= 3'd3; // Enviar 4 bytes (menos 1)
-						read_amount <= 8'd1; // Leer 2 bytes (menos 1) (contraseña de 4 dígitos)
+						if (sensitivity_action) begin
+							read_amount <= 8'd0; // Leer 1 bytes (menos 1) (1 byte de sensibilidad)
+						end else begin
+							read_amount <= 8'd1; // Leer 2 bytes (menos 1) (contraseña de 4 dígitos)
+						end
 						data_rw <= 3'd3; // Iniciar lectura después del byte 3
 						// A0, dirección de memoria High y Low, (restart), A1, (Leer)
-						i2c_data <= {8'hA1, PASSWORD_ADD[7:0], PASSWORD_ADD[15:8], 8'hA0}; // Dirección de memoria + datos vacíos
+						i2c_data <= {8'hA1, address[7:0], address[15:8], 8'hA0}; // Dirección de memoria + datos vacíos
 
 						state <= READ1;
 						current_read_byte <= 1;
@@ -112,7 +142,14 @@ module eeprom_driver (
 					start <= 1'b0;
 					if (data_ready && ~prev_data_ready) begin
 						case (current_read_byte)
-							1: password_out[15:8] <= i2c_result[7:0]; // Primer y segundo dígito
+							1: begin
+								if (sensitivity_action) begin
+									sensitivity_out <= i2c_result[2:0]; // Sensitivity value
+									state <= IDLE; // Only one byte to read for sensitivity
+								end else begin
+									password_out[15:8] <= i2c_result[7:0]; // Primer y segundo dígito
+								end
+							end
 							0: begin 
 								password_out[7:0] <= i2c_result[7:0]; // Tercer y cuarto dígito
 								state <= IDLE;
@@ -130,10 +167,16 @@ module eeprom_driver (
 						// Preparar la escritura de la contraseña
 						start <= 1'b1;
 						restart_pos <= 3'd7; // No hacer restart
-						data_amount <= 3'd4; // Escribir 5 bytes (menos 1)
+						if (sensitivity_action) begin
+							data_amount <= 3'd3; // Escribir 4 bytes (menos 1)
+							i2c_data <= {in[7:0], address[7:0], address[15:8], 8'hA0}; // Dirección de memoria + sensibilidad
+						end else begin
+							data_amount <= 3'd4; // Escribir 5 bytes (menos 1)
+							i2c_data <= {in[7:0], in[15:8], address[7:0], address[15:8], 8'hA0}; // Dirección de memoria + contraseña
+						end
+						
 						read_amount <= 8'd0; // No leer nada
 						data_rw <= 3'd7; // Solo escribir, no leer
-						i2c_data <= {password_in[7:0], password_in[15:8], PASSWORD_ADD[7:0], PASSWORD_ADD[15:8], 8'hA0}; // Dirección de memoria + contraseña
 
 						state <= WAIT0;
 					end
@@ -149,7 +192,11 @@ module eeprom_driver (
 
 				WAIT1: begin
 					if (wait_counter == MAX_WAIT_COUNTER) begin // Esperar a que la memoria eeprom escriba los datos
-						password_out <= password_in; // Actualizar la contraseña leída con la nueva contraseña
+						if (sensitivity_action) begin
+							sensitivity_out <= in[2:0]; // Actualizar la sensibilidad leída con la nueva sensibilidad
+						end else begin
+							password_out <= in; // Actualizar la contraseña leída con la nueva contraseña
+						end
 						state <= IDLE;
 						wait_counter <= 0;
 					end

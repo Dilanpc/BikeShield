@@ -31,20 +31,35 @@ module system (
 
 	wire rst = ~rst_in;
 
+
+
+
+
+
 	// I2C /////////////////////////////////////////////////////////////////////////////////////////////////
-	reg [2:0] i2c_command = 0; // 1: INIT, 2: LOAD PASSWORD, 3: CHANGE PASSWORD, 4: SLEEP, 5: WAKEUP
+	reg [2:0] i2c_command = 0;
+		// 0: INIT
+		// 1: LOAD PASSWORD
+		// 2: LOAD SENSITIVITY
+		// 3: CHANGE PASSWORD
+		// 4: CHANGE SENSITIVITY
+		// 5: SLEEP
+		// 6: WAKEUP
 	reg i2c_enable = 0; // To confirm command
 	wire i2c_busy; // To indicate that the driver is busy
 	wire manipulation; // Alert from mpu
-	reg [2:0] sensitivity = 3'd3; // Sensitivity for manipulation detection.
-	reg [15:0] password_in = 16'hFFFF;
-	wire [15:0] password;
+	reg [2:0] sensitivity_temp = 0; // Sensitivity meanwhile the user selects the sensitivity value
+	reg [15:0] pass_sens_in = 16'hFFFF; // Input for the eemprom, password or sensitivity to be written
+	wire [15:0] password; // Password read from eeprom or eeprom
+	wire [2:0] sensitivity; // Sensitivity value read from eeprom
 
-	localparam I2C_INIT = 3'd1;
-	localparam I2C_LOAD_PASSWORD = 3'd2;
+	localparam I2C_INIT = 3'd0;
+	localparam I2C_LOAD_PASSWORD = 3'd1;
+	localparam I2C_LOAD_SENSITIVITY = 3'd2;
 	localparam I2C_CHANGE_PASSWORD = 3'd3;
-	localparam I2C_SLEEP = 3'd4;
-	localparam I2C_WAKEUP = 3'd5;
+	localparam I2C_CHANGE_SENSITIVITY = 3'd4;
+	localparam I2C_SLEEP = 3'd5;
+	localparam I2C_WAKEUP = 3'd6;
 
 
 
@@ -59,6 +74,8 @@ module system (
 		// 6: SET PASSWORD + 4 characters to show
 		// 7: CONFIRM PASSWORD + 4 characters to show
 		// 8: SELECT SET PASSWORD
+		// 9: FEEDBACK_PASSWORD
+		// 10: FEEDBACK_SENSITIVITY
 
 	reg [31:0] lcd_data = 0; // Additional data for instructions that require it. Keep until done
 	reg lcd_enable = 0;
@@ -73,6 +90,8 @@ module system (
 	localparam LCD_SET_PASSWORD = 4'd6;
 	localparam LCD_CONFIRM_PASSWORD = 4'd7;
 	localparam LCD_SELECT_SET_PASSWORD = 4'd8;
+	localparam LCD_FEEDBACK_PASSWORD = 4'd9;
+	localparam LCD_FEEDBACK_SENSITIVITY = 4'd10;
 
 
 	// Keyboard ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -105,13 +124,14 @@ module system (
 	localparam LOCKED_IDLE = 4'd4;
 	localparam UNLOCKED_IDLE_SELECTION   = 4'd5;
 	localparam UNLOCKED_IDLE_SENSITIVITY = 4'd6;
-	localparam LOAD_NEW_SENSITIVITY = 4'd7;
-	localparam UNLOCKED_IDLE_SET_PASSWORD    = 4'd8;
-	localparam CONFIRM_PASSWORD = 4'd9;
-	localparam LOAD_NEW_PASSWORD = 4'd10;
-	localparam CHECK_PASSWORD = 4'd11;
-	localparam CORRECT   = 4'd12;
-	localparam INCORRECT = 4'd13;
+	localparam SHOW_NEW_SENSITIVITY = 4'd7;
+	localparam SAVE_SENSITIVITY = 4'd8;
+	localparam UNLOCKED_IDLE_SET_PASSWORD = 4'd9;
+	localparam CONFIRM_PASSWORD = 4'd10;
+	localparam LOAD_NEW_PASSWORD = 4'd11;
+	localparam CHECK_PASSWORD = 4'd12;
+	localparam CORRECT   = 4'd13;
+	localparam INCORRECT = 4'd14;
 
 
 	reg [3:0] state = INIT0;
@@ -151,7 +171,7 @@ module system (
 			prev_key_pressed <= key_pressed;
 
 			case(state)
-				INIT0: begin
+				INIT0: begin // Wait for stabilization
 					i2c_enable <= 1'b0;
 					lcd_enable <= 1'b0;
 
@@ -163,7 +183,7 @@ module system (
 					end
 				end
 
-				INIT1: begin // Initialize eeprom, load password
+				INIT1: begin // Initialize eeprom, load password, load sensitivity
 					if (~i2c_busy && lcd_done) begin
 						i2c_command <= I2C_INIT;
 						i2c_enable <= 1'b1;
@@ -172,7 +192,8 @@ module system (
 					end
 				end
 
-				INIT2: begin
+				INIT2: begin // Set display according to the state of the system (locked or unlocked)
+					sensitivity_temp <= sensitivity;
 					state <= WAIT;
 					current_digit <= 0;
 					lcd_enable <= 1'b1;
@@ -195,7 +216,7 @@ module system (
 				end
 
 
-				LOCKED_IDLE: begin
+				LOCKED_IDLE: begin // Here the user can enter the password to unlock the system
 					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
 						
 						if (key == 4'd11) begin // '#' key to delete 
@@ -226,29 +247,30 @@ module system (
 							next_state <= LOCKED_IDLE;
 							lcd_data <= "____";
 							current_digit <= 0;
-						end else begin
+						end else begin // A number key has been pressed
+							// Password input is stored in pass_sens_in
 							lcd_instruction <= LCD_AUTHENTICATE;
 							lcd_enable <= 1'b1;
 							state <= WAIT;
 							next_state <= LOCKED_IDLE;
 							case (current_digit)
 								2'd0: begin
-									password_in[15:12] <= key;
+									pass_sens_in[15:12] <= key;
 									lcd_data <= "#___";
 									current_digit <= 2'd1;
 								end
 								2'd1: begin
-									password_in[11:8] <= key;
+									pass_sens_in[11:8] <= key;
 									lcd_data <= "##__";
 									current_digit <= 2'd2;
 								end
 								2'd2: begin
-									password_in[7:4] <= key;
+									pass_sens_in[7:4] <= key;
 									lcd_data <= "###_";
 									current_digit <= 2'd3;
 								end
 								2'd3: begin
-									password_in[3:0] <= key;
+									pass_sens_in[3:0] <= key;
 									lcd_enable <= 1'b0;
 									state <= CHECK_PASSWORD;
 								end
@@ -282,7 +304,7 @@ module system (
 								next_state <= UNLOCKED_IDLE_SET_PASSWORD;
 							end else begin // Switch to set sensitivity
 								lcd_instruction <= LCD_SENSITIVITY;
-								lcd_data <= sensitivity;
+								lcd_data <= {29'd0, sensitivity};
 								next_state <= UNLOCKED_IDLE_SENSITIVITY;
 							end
 						end
@@ -294,33 +316,64 @@ module system (
 					alarm <= 1'b0; // Reset alarm
 					tries <= 2'd3; // Reset tries
 					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
-						if (key == 4'd10 || key == 4'd11) begin // '*' or '#' Return to selection
+						if (key == 4'd10) begin // '*' Cancel and return to selection
+							sensitivity_temp <= sensitivity;
 							lcd_instruction <= LCD_SELECT_SENSITIVITY;
 							lcd_enable <= 1'b1;
 							state <= WAIT;
 							next_state <= UNLOCKED_IDLE_SELECTION;
 						end
+						if (key == 4'd11) begin // '#' Save sensitivity and return to selection
+							state <= WAIT;
+							if (sensitivity_temp != sensitivity) begin // If the user changed the sensitivity, load it to the eeprom
+								pass_sens_in <= {13'd0, sensitivity_temp};
+								i2c_command <= I2C_CHANGE_SENSITIVITY;
+								i2c_enable <= 1'b1;
+
+								lcd_instruction <= LCD_FEEDBACK_SENSITIVITY;
+								lcd_enable <= 1'b1;
+								next_state <= SAVE_SENSITIVITY;
+							end
+							else begin
+								lcd_instruction <= LCD_SELECT_SENSITIVITY;
+								lcd_enable <= 1'b1;
+								next_state <= UNLOCKED_IDLE_SELECTION;
+							end
+						end
 						else if (key <= 3'd1 || key == 4'd4 || key == 3'd7) begin // Decrease sensitivity
-							if (sensitivity > 3'd0) begin
-								sensitivity <= sensitivity - 1'b1;
-								state <= LOAD_NEW_SENSITIVITY;
+							if (sensitivity_temp > 3'd0) begin
+								sensitivity_temp <= sensitivity_temp - 1'b1;
+								state <= SHOW_NEW_SENSITIVITY;
 							end
 						end
 						else if (key == 3'd3 || key == 4'd6 || key == 4'd9) begin // Increase sensitivity
-							if (sensitivity < 3'd7) begin
-								sensitivity <= sensitivity + 1'b1;
-								state <= LOAD_NEW_SENSITIVITY;
+							if (sensitivity_temp < 3'd7) begin
+								sensitivity_temp <= sensitivity_temp + 1'b1;
+								state <= SHOW_NEW_SENSITIVITY;
 							end
 						end
 					end
 				end
 
-				LOAD_NEW_SENSITIVITY: begin // Load new sensitivity
+				SHOW_NEW_SENSITIVITY: begin // Show new sensitivity
 					lcd_instruction <= LCD_SENSITIVITY;
-					lcd_data <= sensitivity;
+					lcd_data <= {29'd0, sensitivity_temp};
 					lcd_enable <= 1'b1;
 					state <= WAIT;
 					next_state <= UNLOCKED_IDLE_SENSITIVITY;
+				end
+
+				SAVE_SENSITIVITY: begin // Wait 1 second to show the feedback message and return to selection
+					if (counter > CORRECT_WAIT) begin
+						lcd_instruction <= LCD_SELECT_SENSITIVITY;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= UNLOCKED_IDLE_SELECTION;
+						counter <= 0;
+					end else begin
+						counter <= counter + 1'b1;
+					end
+					
 				end
 
 
@@ -362,22 +415,22 @@ module system (
 							next_state <= UNLOCKED_IDLE_SET_PASSWORD;
 							case (current_digit)
 								2'd0: begin
-									password_in[15:12] <= key;
+									pass_sens_in[15:12] <= key;
 									lcd_data <= "#___";
 									current_digit <= 2'd1;
 								end
 								2'd1: begin
-									password_in[11:8] <= key;
+									pass_sens_in[11:8] <= key;
 									lcd_data <= "##__";
 									current_digit <= 2'd2;
 								end
 								2'd2: begin
-									password_in[7:4] <= key;
+									pass_sens_in[7:4] <= key;
 									lcd_data <= "###_";
 									current_digit <= 2'd3;
 								end
 								2'd3: begin
-									password_in[3:0] <= key;
+									pass_sens_in[3:0] <= key;
 									lcd_instruction <= LCD_CONFIRM_PASSWORD;
 									lcd_data <= "____";
 									next_state <= CONFIRM_PASSWORD;
@@ -399,7 +452,7 @@ module system (
 				CHECK_PASSWORD: begin
 					lcd_enable <= 1'b1;
 					counter <= 0;
-					if (password_in == password) begin
+					if (pass_sens_in == password) begin
 						lcd_instruction <= LCD_UNLOCKED;
 						state <= WAIT;
 						next_state <= CORRECT;
@@ -476,10 +529,11 @@ module system (
 		.busy(i2c_busy), // To indicate that the driver is busy
 
 		.manipulation(manipulation), // Alert from mpu
-		.sensitivity(sensitivity), // Sensitivity for manipulation detection.
+		.sensitivity_in(sensitivity_temp), // Sensitivity for manipulation detection.
 
-		.password_in(password_in),
+		.pass_sens_in(pass_sens_in),
 		.password_out(password),
+		.sensitivity_out(sensitivity),
 
 		.error(error),
 		.ackled() // Not required
@@ -513,10 +567,10 @@ module system (
 	driver_4seg driver_4seg_inst (
 		.clk(clk),
 
-		.seg0({1'd0, next_state}),
-		.seg1({1'd0, state}),
-		.seg2({2'd0, tries}),
-		.seg3(password[3:0]),
+		.seg0(password[3:0]),
+		.seg1(password[7:4]),
+		.seg2(password[11:8]),
+		.seg3(password[15:12]),
 
 		.out(segmentos),
 		.power(power)

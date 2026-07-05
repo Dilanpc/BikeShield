@@ -1,11 +1,12 @@
 
 // Comands
-// 0: NONE
-// 1: INIT reads password, initializes mpu, sends to wakeup state
-// 2: LOAD PASSWORD update password_out
+// 0: INIT reads password, reads sensitivity, initializes mpu, sends to wakeup state
+// 1: LOAD PASSWORD update password_out
+// 2: LOAD SENSITIVITY update sensitivity_out
 // 3: CHANGE PASSWORD
-// 4: SLEEP stops i2c communication
-// 5: WAKEUP continues i2c communication
+// 4: CHANGE SENSITIVITY
+// 5: SLEEP stops i2c communication
+// 6: WAKEUP continues i2c communication
 
 // Recommendations
 // Send commands in negedge busy
@@ -22,10 +23,11 @@ module i2c_driver(
 	output busy, // To indicate that the driver is busy
 
 	output manipulation, // Alert from mpu
-	input wire [2:0] sensitivity, // Sensitivity for manipulation detection.
+	input wire [2:0] sensitivity_in, // Sensitivity for manipulation detection.
 
-	input wire [15:0] password_in,
+	input wire [15:0] pass_sens_in,
 	output wire [15:0] password_out,
+	output wire [2:0] sensitivity_out, // Given value from eeprom
 
 	output error,
 	output wire ackled
@@ -103,29 +105,32 @@ module i2c_driver(
 	reg [15:0] prev_accZ;
 
 	///////////// SENSITIVITY THRESHOLD /////////////////////////////////////////////////////////////
-	wire signed [15:0] TH = sensitivity == 3'd7 ? 16'sd200 : // Sensitivity threshold for each axis
-		sensitivity == 3'd6 ? 16'sd400 :
-		sensitivity == 3'd5 ? 16'sd800 :
-		sensitivity == 3'd4 ? 16'sd1500 : 
-		sensitivity == 3'd3 ? 16'sd2000 :
-		sensitivity == 3'd2 ? 16'sd3000 :
-		sensitivity == 3'd1 ? 16'sd4000 : 16'sd8000;
+	wire signed [15:0] TH = sensitivity_in == 3'd7 ? 16'sd200 : // Sensitivity threshold for each axis
+		sensitivity_in == 3'd6 ? 16'sd400 :
+		sensitivity_in == 3'd5 ? 16'sd800 :
+		sensitivity_in == 3'd4 ? 16'sd1500 : 
+		sensitivity_in == 3'd3 ? 16'sd2000 :
+		sensitivity_in == 3'd2 ? 16'sd3000 :
+		sensitivity_in == 3'd1 ? 16'sd4000 : 16'sd8000;
 	
 
 	// STATES //////////////////////////////
 	localparam SLEEP = 4'd0;
 	localparam INIT0 = 4'd1;
 	localparam INIT1 = 4'd2;
-	localparam LOAD_PASSWORD = 4'd3;
-	localparam CHANGE_PASSWORD = 4'd4;
-	localparam AWAKE = 4'd5; // Checks for commands and manipulation counter
-	localparam CHECK_MANIPULATION = 4'd6;
-	localparam WAIT_DONE = 4'd7;
+	localparam INIT2 = 4'd3;
+	localparam LOAD_PASSWORD = 4'd4;
+	localparam LOAD_SENSITIVITY = 4'd5;
+	localparam CHANGE_PASSWORD = 4'd6;
+	localparam CHANGE_SENSITIVITY = 4'd7;
+	localparam AWAKE = 4'd8; // Checks for commands and manipulation counter
+	localparam CHECK_MANIPULATION = 4'd9;
+	localparam WAIT_DONE = 4'd10;
 
-	reg [2:0] state = SLEEP;
-	reg [2:0] next_state = SLEEP;
+	reg [3:0] state = SLEEP;
+	reg [3:0] next_state = SLEEP;
 
-	assign busy = ~((state == SLEEP) || (state == AWAKE));
+	assign busy = ~(((state == SLEEP) || (state == AWAKE)) && ~(enable & ~driver_enable)); // Busy when not in sleep or awake with enable signal
 
 	// Registers 
 	reg prev_enable = 0;
@@ -147,19 +152,25 @@ module i2c_driver(
 				SLEEP: begin
 					if (enable & ~prev_enable) begin
 						case (command)
-							1: begin
+							0: begin
 								state <= INIT0;
 							end
-							2: begin
+							1: begin
 								state <= LOAD_PASSWORD;
+							end
+							2: begin
+								state <= LOAD_SENSITIVITY;
 							end
 							3: begin
 								state <= CHANGE_PASSWORD;
 							end
 							4: begin
-								state <= SLEEP;
+								state <= CHANGE_SENSITIVITY;
 							end
 							5: begin
+								state <= SLEEP;
+							end
+							6: begin
 								state <= AWAKE;
 							end
 						endcase
@@ -169,14 +180,23 @@ module i2c_driver(
 
 				INIT0: begin // Load password
 					selector <= EEPROM;
-					instruction <= 2'd1; // READ PASSWORD
+					instruction <= 2'd0; // READ PASSWORD
 					driver_enable <= 1'b1;
 					prev_done <= eeprom_done;
 					state <= WAIT_DONE;
 					next_state <= INIT1;
 				end
 
-				INIT1: begin // Set mpu
+				INIT1: begin // Load sensitivity
+					selector <= EEPROM;
+					instruction <= 2'd2; // READ SENSITIVITY
+					driver_enable <= 1'b1;
+					prev_done <= eeprom_done;
+					state <= WAIT_DONE;
+					next_state <= INIT2;
+				end
+
+				INIT2: begin // Set mpu
 					selector <= MPU;
 					instruction <= 2'd1; // INIT
 					driver_enable <= 1'b1;
@@ -188,7 +208,15 @@ module i2c_driver(
 
 				LOAD_PASSWORD: begin
 					selector <= EEPROM;
-					instruction <= 2'd1; // READ PASSWORD
+					instruction <= 2'd0; // READ PASSWORD
+					driver_enable <= 1'b1;
+					state <= WAIT_DONE;
+					next_state <= AWAKE;
+				end
+
+				LOAD_SENSITIVITY: begin
+					selector <= EEPROM;
+					instruction <= 2'd2; // READ SENSITIVITY
 					driver_enable <= 1'b1;
 					state <= WAIT_DONE;
 					next_state <= AWAKE;
@@ -196,7 +224,15 @@ module i2c_driver(
 
 				CHANGE_PASSWORD: begin
 					selector <= EEPROM;
-					instruction <= 2'd2; // CHANGE PASSWORD
+					instruction <= 2'd1; // CHANGE PASSWORD
+					driver_enable <= 1'b1;
+					state <= WAIT_DONE;
+					next_state <= AWAKE;
+				end
+
+				CHANGE_SENSITIVITY: begin
+					selector <= EEPROM;
+					instruction <= 2'd3; // CHANGE SENSITIVITY
 					driver_enable <= 1'b1;
 					state <= WAIT_DONE;
 					next_state <= AWAKE;
@@ -206,19 +242,25 @@ module i2c_driver(
 				AWAKE: begin
 					if (enable & ~prev_enable) begin
 						case (command)
-							1: begin
+							0: begin
 								state <= INIT0;
 							end
-							2: begin
+							1: begin
 								state <= LOAD_PASSWORD;
+							end
+							2: begin
+								state <= LOAD_SENSITIVITY;
 							end
 							3: begin
 								state <= CHANGE_PASSWORD;
 							end
 							4: begin
-								state <= SLEEP;
+								state <= CHANGE_SENSITIVITY;
 							end
 							5: begin
+								state <= SLEEP;
+							end
+							6: begin
 								state <= AWAKE;
 							end
 						endcase
@@ -312,8 +354,9 @@ module i2c_driver(
 		.enable(eeprom_enable),
 		.done(eeprom_done),
 
-		.password_in(password_in),
-		.password_out(password_out)
+		.in(pass_sens_in),
+		.password_out(password_out),
+		.sensitivity_out(sensitivity_out)
 	);
 
 

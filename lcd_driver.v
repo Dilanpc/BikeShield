@@ -8,6 +8,8 @@
 // 6: SET PASSWORD + 4 characters to show
 // 7: CONFIRM PASSWORD + 4 characters to show
 // 8: SELECT SET PASSWORD
+// 9: FEEDBACK_PASSWORD
+// 10: FEEDBACK_SENSITIVITY
 
 
 module lcd_driver (
@@ -46,7 +48,7 @@ module lcd_driver (
 	reg prev_ready = 0;
 	reg [4:0] counter = 5'b0;
 
-	assign done = (state == IDLE);
+	assign done = (state == IDLE) && ~(enable && ~prev_enable);
 
 
 	// STATES
@@ -60,8 +62,10 @@ module lcd_driver (
 	localparam SET_PASSWORD = 4'd7;
 	localparam SELECT_SET_PASSWORD = 4'd8;
 	localparam CONFIRM_PASSWORD = 4'd9;
-	localparam CLEAR = 4'd10;
-	localparam WAIT = 4'd11;
+	localparam FEEDBACK_PASSWORD = 4'd10;
+	localparam FEEDBACK_SENSITIVITY = 4'd11;
+	localparam CLEAR = 4'd12;
+	localparam WAIT = 4'd13;
 
 
 	reg [3:0] state = IDLE;
@@ -122,6 +126,16 @@ module lcd_driver (
 							8: begin // SELECTION SET PASSWORD
 								state <= CLEAR;
 								next_state <= SELECT_SET_PASSWORD;
+								awake <= 1;
+							end
+							9: begin // FEEDBACK PASSWORD
+								state <= CLEAR;
+								next_state <= FEEDBACK_PASSWORD;
+								awake <= 1;
+							end
+							10: begin // FEEDBACK SENSITIVITY
+								state <= CLEAR;
+								next_state <= FEEDBACK_SENSITIVITY;
 								awake <= 1;
 							end
 						endcase
@@ -521,6 +535,92 @@ module lcd_driver (
 							
 						endcase
 						
+					end
+				end
+
+
+				FEEDBACK_PASSWORD: begin
+					if (ready) begin
+						counter <= counter + 1'b1;
+						is_command <= 0;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= FEEDBACK_PASSWORD;
+
+						case (counter)
+							5'd0: begin
+								lcd_data  <= 8'h84; // Set position 
+								is_command <= 1'b1;
+							end
+							5'd1: lcd_data <= "P";
+							5'd2: lcd_data <= "A";
+							5'd3: lcd_data <= "S";
+							5'd4: lcd_data <= "S";
+							5'd5: lcd_data <= "W";
+							5'd6: lcd_data <= "O";
+							5'd7: lcd_data <= "R";
+							5'd8: lcd_data <= "D";
+							5'd9: begin
+								lcd_data <= 8'hC4; // Set position
+								is_command <= 1'b1;
+							end
+							5'd10: lcd_data <= "C";
+							5'd11: lcd_data <= "H";
+							5'd12: lcd_data <= "A";
+							5'd13: lcd_data <= "N";
+							5'd14: lcd_data <= "G";
+							5'd15: lcd_data <= "E";
+							5'd16: begin
+								lcd_data <= "D";
+								counter <= 0;
+								next_state <= IDLE;
+							end
+						endcase
+					end
+				end
+
+
+
+				FEEDBACK_SENSITIVITY: begin
+					if (ready) begin
+						counter <= counter + 1'b1;
+						is_command <= 0;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= FEEDBACK_SENSITIVITY;
+
+						case (counter)
+							5'd0: begin
+								lcd_data  <= 8'h83; // Set position 
+								is_command <= 1'b1;
+							end
+							5'd1: lcd_data <= "S";
+							5'd2: lcd_data <= "E";
+							5'd3: lcd_data <= "N";
+							5'd4: lcd_data <= "S";
+							5'd5: lcd_data <= "I";
+							5'd6: lcd_data <= "T";
+							5'd7: lcd_data <= "I";
+							5'd8: lcd_data <= "V";
+							5'd9: lcd_data <= "I";
+							5'd10: lcd_data <= "T";
+							5'd11: lcd_data <= "Y";
+							5'd12: begin
+								lcd_data <= 8'hC4; // Set position
+								is_command <= 1'b1;
+							end
+							5'd13: lcd_data <= "C";
+							5'd14: lcd_data <= "H";
+							5'd15: lcd_data <= "A";
+							5'd16: lcd_data <= "N";
+							5'd17: lcd_data <= "G";
+							5'd18: lcd_data <= "E";
+							5'd19: begin
+								lcd_data <= "D";
+								counter <= 0;
+								next_state <= IDLE;
+							end
+						endcase
 					end
 				end
 

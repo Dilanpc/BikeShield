@@ -258,7 +258,7 @@ module eeprom_mpu_test (
 		.manipulation(manipulation), // Alert from mpu
 		.sensitivity(3'd3), // Sensitivity for manipulation detection.
 
-		.password_in(),
+		.in(),
 		.password_out(password),
 
 		.error(error),
@@ -379,7 +379,7 @@ module memory_test1 (
 	reg [1:0] instruction = 0;
 	reg enable = 0;
 	wire done;
-	reg [15:0] password_in = {4'd1, 4'd2, 4'd3, 4'd4}; // 1234
+	reg [15:0] in = {4'd1, 4'd2, 4'd3, 4'd4}; // 1234
 	wire [15:0] password_out;
 
 	reg prev_done = 0;
@@ -478,8 +478,9 @@ module memory_test1 (
 		.enable(enable),
 		.done(done),
 
-		.password_in(password_in),
-		.password_out(password_out)
+		.in(in),
+		.password_out(password_out),
+		.sensitivity_out()
 
 		// Debug
 		// .leds(leds)
