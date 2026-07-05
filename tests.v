@@ -138,7 +138,7 @@ module lcd_driver_test (
 		// Parallel connections
 		.rs(rs),
 		.e(e),
-		.d(d),
+		.d(d)
 	);
 
 	driver_4seg drvseg(

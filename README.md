@@ -16,7 +16,7 @@
 - [X] Controlador
 
 #### Sensor de continuidad
-- [ ] Controlador
+- [X] Controlador
 
 #### Contrucción física
 - [ ] Diseño CAD
@@ -31,25 +31,38 @@
 Funciones que se pueden manejar con los controladores
 
 ### Pantalla LCD
-* Init
+Diferentes interfeces:
 * Turn off
-* Password
-* Change password
-* Incorrect password
+* Authentication
+* Unlocked
+* Incorrect
+* Set sensitivity
+* Select Set sensitivity
+* Set password
+* Confirm password
+* Select Set password
 
 ### Memoria EEPROM
+* Init
 * Load password
 * Set password
-
 
 #### Acelerómetro MPU
 * Init
 * Get acceleration
 
+### I2C driver
+Incluye funciones aplicadas al proyecto de la memoria EEPROM y el acelerómetro MPU
+* Init
+* Load password
+* Change password
+* Sleep
+* Wakeup
+
 #### Teclado numérico
-* Get input (Circuito combinacional)
+* Get input
 
 #### Sensor de continuidad
-* Get input (Circuito combinacional)
+* Get input
 
 

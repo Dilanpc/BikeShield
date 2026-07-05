@@ -3,14 +3,10 @@ module keyboard (
 	output reg [3:0] row = 0,
 	input [2:0] col, // Pull-down resistors
 
-	output reg [3:0] out, // 4-bit output for the key pressed, 10 = *, 11 = #, 15 = no key pressed
-
-	// Debug
-	output wire [3:0] leds
+	output reg [3:0] out // 4-bit output for the key pressed, 10 = *, 11 = #, 15 = no key pressed
 
 	);
 	
-	assign leds = ~{pressed_row, pressed_col}; 
 
 	// REFRESH RATE (important because of capacitances)
 	localparam REFRESH_RATE = 50_000; // 1 ms at 50 MHz

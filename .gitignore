@@ -3,6 +3,10 @@
 *.jdi
 *.rpt
 *.vwf
+*.jic
+*.map
+*.qws
+
 .qsys_edit/
 output_files/
 simulation/

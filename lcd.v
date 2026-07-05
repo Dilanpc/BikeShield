@@ -5,25 +5,30 @@ module lcd (
 	input enable,
 	input is_command,
 	
-	output reg rs,
+	output reg rs = 0,
 	output reg e = 0,
 	output reg [3:0] d = 0,
-	output wire ready
+	output wire ready,
+
+	// Debug
+	output wire [3:0] current_state
 );
 	
-	
+	assign current_state = {awake, enable, ready, e};
+	// assign current_state = state;
+
 	reg prev_awake = 0;
 	reg prev_enable = 0;
 
 	
 	
 	// Tiempos de espera
-	localparam CYCLES_INIT_WAIT_0 = 1_000_000; 
-	localparam CYCLES_INIT_WAIT_1 = 250_000; 
-	localparam CYCLES_INIT_WAIT_2 = 10_000; 
-	localparam MICRO_1 = 50;
-	localparam MICRO_40 = 2_000;
-	localparam MILLI_2 = 100_000;
+	localparam CYCLES_INIT_WAIT_0 = 20'd1_000_000; 
+	localparam CYCLES_INIT_WAIT_1 = 20'd250_000; 
+	localparam CYCLES_INIT_WAIT_2 = 20'd10_000; 
+	localparam MICRO_1 = 20'd50;
+	localparam MICRO_40 = 20'd2_000;
+	localparam MILLI_2 = 20'd100_000;
 	
 	// DEBUG
 //	localparam CYCLES_INIT_WAIT_0 = 5; 
@@ -35,16 +40,17 @@ module lcd (
 	////////
 
 
-	localparam IDLE       = 0;
-	localparam INIT       = 1;
-	localparam INIT_WAIT  = 2;
-	localparam SHORT_WAIT = 3;
-	localparam LONG_WAIT  = 4;
-	localparam SEND_HIGH  = 5;
-	localparam SEND_LOW   = 6;
+	localparam IDLE       = 4'd0;
+	localparam INIT       = 4'd1;
+	localparam INIT_WAIT  = 4'd2;
+	localparam SHORT_WAIT = 4'd3;
+	localparam LONG_WAIT  = 4'd4;
+	localparam SEND_HIGH  = 4'd5;
+	localparam SEND_LOW   = 4'd6;
 	
-	reg [4:0] state = IDLE;
-	reg [4:0] prev_state = IDLE;
+	reg [3:0] state = IDLE;
+	reg [3:0] prev_state = IDLE;
+
 
 	reg [7:0] data_to_send = 0;
 	reg [19:0] cnt = 0;
@@ -53,11 +59,11 @@ module lcd (
 	reg [5:0] e_cnt = 0;
 	
 	//             Esperando       Que no se acabe de iniciar   Que no se este inicializando
-	assign ready = (state == IDLE) & awake & prev_awake &       (init_state == 0);
+	assign ready = (state == IDLE) & awake & prev_awake &     (init_state == 4'd0);
 
-	assign init_cnt = (init_state == 1) ? CYCLES_INIT_WAIT_0 :
-							(init_state == 2) ? CYCLES_INIT_WAIT_1 :
-							(init_state == 3) ? CYCLES_INIT_WAIT_2 : CYCLES_INIT_WAIT_2;
+	assign init_cnt = (init_state == 4'd1) ? CYCLES_INIT_WAIT_0 :
+							(init_state == 4'd2) ? CYCLES_INIT_WAIT_1 :
+							(init_state == 4'd3) ? CYCLES_INIT_WAIT_2 : CYCLES_INIT_WAIT_2;
 	
 	
 	//// FSM
@@ -65,6 +71,7 @@ module lcd (
 		if (~awake) begin
 			state <= IDLE;
 			prev_state <= IDLE;
+			prev_awake <= 0;
 			init_state <= 0;
 			cnt <= 0;
 			e_cnt <= 0;
@@ -72,22 +79,18 @@ module lcd (
 			e <= 0;
 			d <= 0;
 		end else begin
-		
+			prev_enable <= enable;
+			prev_awake <= awake;
 			case(state)
 				IDLE:
 				begin
 					
-					if (awake && ~prev_awake || (init_state != 0))
+					if ((awake && ~prev_awake) || (init_state != 4'd0))
 					begin
 						state <= INIT;
 						prev_state <= IDLE;
-						prev_awake <= 1;
-					end
-					else if (~awake)
-					begin
-						prev_awake <= 0;
-					end
 
+					end
 					else if (enable & ~prev_enable)
 					begin
 						data_to_send <= data;
@@ -95,23 +98,20 @@ module lcd (
 						state <= SEND_HIGH;
 						prev_state <= IDLE;
 						prev_enable <= 1;
-					end else if (~enable)
-					begin
-						prev_enable <= 0;
 					end
 				end
 				
 				
 				
-				INIT:
-				begin
-					if (init_state == 0)
+				INIT: begin
+					if (init_state == 4'd0)
 					begin
 						rs <= 0; // Para enviar comandos
-						init_state <= 1;
+						init_state <= 4'd1;
 						state <= INIT_WAIT;
+						cnt <= 0;
 
-					end else if (init_state == 1 || init_state == 2 || init_state == 3) // Confi modo 4 bits
+					end else if (init_state == 4'd1 || init_state == 4'd2 || init_state == 4'd3) // Confi modo 4 bits
 					begin
 						d <= 4'b0011;
 					
@@ -121,11 +121,12 @@ module lcd (
 							e <= 1;
 							init_state <= init_state + 4'b1;
 							state <= INIT_WAIT;
-						end else
+						end else begin
 							cnt <= cnt + 20'b1;
+						end
 					
 					end
-					else if (init_state == 4)
+					else if (init_state == 4'd4)
 					begin
 						d <= 4'b0010; // Ya queda modo 4 bits
 						if (cnt == MICRO_1) // 1 us esperar que d sea estable
@@ -134,8 +135,9 @@ module lcd (
 							e <= 1;
 							init_state <= init_state + 4'b1;
 							state <= LONG_WAIT;
-						end else
+						end else begin
 							cnt <= cnt + 20'b1;
+						end
 					end
 				
 					else if (init_state == 5) // Function set
@@ -192,9 +194,7 @@ module lcd (
 							e_cnt <= e_cnt + 6'b1;
 						end
 					end
-
-					
-					if (cnt == init_cnt)
+					else if (cnt == init_cnt)
 					begin
 						cnt <= 0;
 						state <= INIT;
@@ -216,9 +216,7 @@ module lcd (
 						begin
 							e_cnt <= e_cnt + 6'b1;
 						end
-					end
-					
-					if (cnt == MICRO_40) // 40 us esperar que se muestre el dato
+					end else if (cnt == MICRO_40) // 40 us esperar que se muestre el dato
 					begin
 						cnt <= 0;
 						if (prev_state == SEND_HIGH)
@@ -232,8 +230,9 @@ module lcd (
 						end
 
 					end
-					else
-						cnt <= cnt + 20'b1;
+					else begin
+						cnt <= cnt + 1'b1;
+					end
 				
 				
 				end
@@ -275,9 +274,7 @@ module lcd (
 				
 				end
 				
-				SEND_HIGH:
-				begin
-
+				SEND_HIGH: begin
 					d <= data_to_send[7:4];
 
 					
@@ -287,20 +284,17 @@ module lcd (
 						e <= 1;
 						prev_state <= SEND_HIGH;
 						state <= SHORT_WAIT;
-					end else
+					end else begin
 						cnt <= cnt + 20'b1;
+					end
 				
 				end
 				
 				
 				
 				
-				SEND_LOW:
-				begin
-					if (cnt == 0)
-					begin
-						d <= data_to_send[3:0];
-					end
+				SEND_LOW: begin
+					d <= data_to_send[3:0];
 					
 					if (cnt == MICRO_1) // 1 us esperar que d sea estable
 					begin
@@ -318,8 +312,9 @@ module lcd (
 							state <= SHORT_WAIT;
 						end
 						
-					end else
+					end else begin
 						cnt <= cnt + 20'b1;
+					end
 				
 				end
 				

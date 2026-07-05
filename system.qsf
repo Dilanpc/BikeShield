@@ -1,0 +1,109 @@
+# -------------------------------------------------------------------------- #
+#
+# Copyright (C) 2025  Altera Corporation. All rights reserved.
+# Your use of Altera Corporation's design tools, logic functions 
+# and other software and tools, and any partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Altera Program License 
+# Subscription Agreement, the Altera Quartus Prime License Agreement,
+# the Altera IP License Agreement, or other applicable license
+# agreement, including, without limitation, that your use is for
+# the sole purpose of programming logic devices manufactured by
+# Altera and sold by Altera or its authorized distributors.  Please
+# refer to the Altera Software License Subscription Agreements 
+# on the Quartus Prime software download page.
+#
+# -------------------------------------------------------------------------- #
+#
+# Quartus Prime
+# Version 25.1std.0 Build 1129 10/21/2025 SC Lite Edition
+# Date created = 16:04:21  May 30, 2026
+#
+# -------------------------------------------------------------------------- #
+#
+# Notes:
+#
+# 1) The default values for assignments are stored in the file:
+#		system_assignment_defaults.qdf
+#    If this file doesn't exist, see file:
+#		assignment_defaults.qdf
+#
+# 2) Intel recommends that you do not modify this file. This
+#    file is updated automatically by the Quartus Prime software
+#    and any changes you make may be lost or overwritten.
+#
+# -------------------------------------------------------------------------- #
+
+
+set_global_assignment -name FAMILY "Cyclone IV E"
+set_global_assignment -name DEVICE EP4CE6E22C8
+set_global_assignment -name TOP_LEVEL_ENTITY system
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 25.1STD.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "16:04:21  MAY 30, 2026"
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
+set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.2V
+set_global_assignment -name EDA_SIMULATION_TOOL "Questa Altera FPGA (Verilog)"
+set_global_assignment -name EDA_TIME_SCALE "1 ps" -section_id eda_simulation
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT "VERILOG HDL" -section_id eda_simulation
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name VERILOG_FILE system.v
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf
+set_global_assignment -name VERILOG_FILE debouncer.v
+set_global_assignment -name VERILOG_FILE hex_to_7seg.v
+set_global_assignment -name VERILOG_FILE lcd.v
+set_location_assignment PIN_11 -to leds[3]
+set_location_assignment PIN_10 -to leds[2]
+set_location_assignment PIN_7 -to leds[1]
+set_location_assignment PIN_3 -to leds[0]
+set_location_assignment PIN_23 -to clk
+set_global_assignment -name VERILOG_FILE i2c_master.v
+set_location_assignment PIN_110 -to scl
+set_location_assignment PIN_105 -to sda
+set_location_assignment PIN_125 -to rst_in
+set_location_assignment PIN_55 -to error
+set_location_assignment PIN_60 -to power[0]
+set_location_assignment PIN_65 -to power[1]
+set_location_assignment PIN_67 -to power[2]
+set_location_assignment PIN_69 -to power[3]
+set_location_assignment PIN_59 -to segmentos[6]
+set_location_assignment PIN_64 -to segmentos[5]
+set_location_assignment PIN_66 -to segmentos[4]
+set_location_assignment PIN_68 -to segmentos[3]
+set_location_assignment PIN_70 -to segmentos[2]
+set_location_assignment PIN_72 -to segmentos[1]
+set_location_assignment PIN_74 -to segmentos[0]
+set_global_assignment -name VERILOG_FILE mpu_driver.v
+set_global_assignment -name VERILOG_FILE eeprom_driver.v
+set_global_assignment -name VERILOG_FILE keyboard.v
+set_location_assignment PIN_121 -to row[0]
+set_location_assignment PIN_120 -to row[1]
+set_location_assignment PIN_119 -to row[2]
+set_location_assignment PIN_115 -to row[3]
+set_location_assignment PIN_114 -to col[0]
+set_location_assignment PIN_113 -to col[1]
+set_location_assignment PIN_112 -to col[2]
+set_global_assignment -name VERILOG_FILE i2c_driver.v
+set_global_assignment -name VERILOG_FILE lcd_driver.v
+set_global_assignment -name VERILOG_FILE tests.v
+set_location_assignment PIN_34 -to lcd_d[0]
+set_location_assignment PIN_39 -to lcd_d[1]
+set_location_assignment PIN_43 -to lcd_d[2]
+set_location_assignment PIN_46 -to lcd_d[3]
+set_location_assignment PIN_33 -to lcd_rs
+set_location_assignment PIN_38 -to lcd_e
+set_location_assignment PIN_111 -to closed
+set_location_assignment PIN_143 -to lcd_awake
+set_location_assignment PIN_103 -to alarm
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

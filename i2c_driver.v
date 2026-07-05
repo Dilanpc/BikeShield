@@ -5,7 +5,7 @@
 // 2: LOAD PASSWORD update password_out
 // 3: CHANGE PASSWORD
 // 4: SLEEP stops i2c communication
-// 6: WAKEUP continues i2c communication
+// 5: WAKEUP continues i2c communication
 
 // Recommendations
 // Send commands in negedge busy
@@ -103,14 +103,13 @@ module i2c_driver(
 	reg [15:0] prev_accZ;
 
 	///////////// SENSITIVITY THRESHOLD /////////////////////////////////////////////////////////////
-	wire signed [15:0] TH = sensitivity == 3'd0 ? 16'sd200 : // Sensitivity threshold for each axis
-		sensitivity == 3'd1 ? 16'sd400 :
-		sensitivity == 3'd2 ? 16'sd800 :
-		sensitivity == 3'd3 ? 16'sd1500 : 
-		sensitivity == 3'd4 ? 16'sd2000 :
-		sensitivity == 3'd5 ? 16'sd3000 :
-		sensitivity == 3'd6 ? 16'sd4000 :
-		sensitivity == 3'd7 ? 16'sd8000 : 16'sd200;
+	wire signed [15:0] TH = sensitivity == 3'd7 ? 16'sd200 : // Sensitivity threshold for each axis
+		sensitivity == 3'd6 ? 16'sd400 :
+		sensitivity == 3'd5 ? 16'sd800 :
+		sensitivity == 3'd4 ? 16'sd1500 : 
+		sensitivity == 3'd3 ? 16'sd2000 :
+		sensitivity == 3'd2 ? 16'sd3000 :
+		sensitivity == 3'd1 ? 16'sd4000 : 16'sd8000;
 	
 
 	// STATES //////////////////////////////
