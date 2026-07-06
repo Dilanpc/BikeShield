@@ -446,8 +446,13 @@ module lcd_driver (
 							5'd17: lcd_data <= data[31:24]; // First character
 							5'd18: lcd_data <= data[23:16]; // Second character
 							5'd19: lcd_data <= data[15:8]; // Third character
-							5'd20: begin 
-								lcd_data <= data[7:0]; // Fourth character
+							5'd20: lcd_data <= data[7:0]; // Fourth character
+							5'd21: begin
+								lcd_data <= 8'hCF; // Set position
+								is_command <= 1'b1;
+							end
+							5'd22: begin 
+								lcd_data <= "#";
 								counter <= 0;
 								next_state <= IDLE;
 							end
@@ -471,26 +476,42 @@ module lcd_driver (
 						next_state <= CONFIRM_PASSWORD;
 
 						case (counter)
-							5'd0: begin
+							5'd0: lcd_data <= "x";
+							5'd1: begin
 								lcd_data  <= 8'h84; // Set position 
 								is_command <= 1'b1;
 							end
-							5'd1: lcd_data <= "C";
-							5'd2: lcd_data <= "O";
-							5'd3: lcd_data <= "N";
-							5'd4: lcd_data <= "F";
-							5'd5: lcd_data <= "I";
-							5'd6: lcd_data <= "R";
-							5'd7: lcd_data <= "M";
-							5'd8: begin
+							5'd2: lcd_data <= "C";
+							5'd3: lcd_data <= "O";
+							5'd4: lcd_data <= "N";
+							5'd5: lcd_data <= "F";
+							5'd6: lcd_data <= "I";
+							5'd7: lcd_data <= "R";
+							5'd8: lcd_data <= "M";
+							5'd9: begin
+								lcd_data <= 8'h8F; // Set position
+								is_command <= 1'b1;
+							end
+							5'd10: lcd_data <= 8'h7F; // Left arrow
+							5'd11: begin
+								lcd_data <= 8'hC0; // Set position
+								is_command <= 1'b1;
+							end
+							5'd12: lcd_data <= "*";
+							5'd13: begin
 								lcd_data <= 8'hC6; // Set position
 								is_command <= 1'b1;
 							end
-							5'd9:  lcd_data <= data[31:24]; // First character
-							5'd10: lcd_data <= data[23:16]; // Second character
-							5'd11: lcd_data <= data[15:8]; // Third character
-							5'd12: begin 
-								lcd_data <= data[7:0]; // Fourth character
+							5'd14: lcd_data <= data[31:24]; // First character
+							5'd15: lcd_data <= data[23:16]; // Second character
+							5'd16: lcd_data <= data[15:8]; // Third character
+							5'd17: lcd_data <= data[7:0]; // Fourth character
+							5'd18: begin
+								lcd_data <= 8'hCF; // Set position
+								is_command <= 1'b1;
+							end
+							5'd19: begin 
+								lcd_data <= "#";
 								counter <= 0;
 								next_state <= IDLE;
 							end

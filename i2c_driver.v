@@ -105,13 +105,13 @@ module i2c_driver(
 	reg [15:0] prev_accZ;
 
 	///////////// SENSITIVITY THRESHOLD /////////////////////////////////////////////////////////////
-	wire signed [15:0] TH = sensitivity_in == 3'd7 ? 16'sd200 : // Sensitivity threshold for each axis
-		sensitivity_in == 3'd6 ? 16'sd400 :
-		sensitivity_in == 3'd5 ? 16'sd800 :
-		sensitivity_in == 3'd4 ? 16'sd1500 : 
-		sensitivity_in == 3'd3 ? 16'sd2000 :
-		sensitivity_in == 3'd2 ? 16'sd3000 :
-		sensitivity_in == 3'd1 ? 16'sd4000 : 16'sd8000;
+	wire signed [15:0] TH = sensitivity_in == 3'd7 ? 16'sd400 : // Sensitivity threshold for each axis
+		sensitivity_in == 3'd6 ? 16'sd1000 :
+		sensitivity_in == 3'd5 ? 16'sd2000 :
+		sensitivity_in == 3'd4 ? 16'sd4000 : 
+		sensitivity_in == 3'd3 ? 16'sd6000 :
+		sensitivity_in == 3'd2 ? 16'sd8000 :
+		sensitivity_in == 3'd1 ? 16'sd10_000 : 16'sd15_000;
 	
 
 	// STATES //////////////////////////////

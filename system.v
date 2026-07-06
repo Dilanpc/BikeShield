@@ -16,7 +16,7 @@ module system (
 	output [3:0] row,
 	input [2:0] col,
 
-	input wire closed, // If the continuity circuit is closed, the system is locked
+	input wire closed_raw, // If the continuity circuit is closed, the system is locked
 	output reg alarm, // To activate the buzzer when the system is manipulated
 
 	output wire error,
@@ -27,7 +27,7 @@ module system (
 	output [3:0] leds
 	);
 
-	assign leds = ~{error, manipulation, alarm, closed};
+	assign leds = ~{error, i2c_busy, manipulation, alarm};
 
 	wire rst = ~rst_in;
 
@@ -48,6 +48,7 @@ module system (
 	reg i2c_enable = 0; // To confirm command
 	wire i2c_busy; // To indicate that the driver is busy
 	wire manipulation; // Alert from mpu
+	reg prev_manipulation = 1'b1; // Previous state of manipulation
 	reg [2:0] sensitivity_temp = 0; // Sensitivity meanwhile the user selects the sensitivity value
 	reg [15:0] pass_sens_in = 16'hFFFF; // Input for the eemprom, password or sensitivity to be written
 	wire [15:0] password; // Password read from eeprom or eeprom
@@ -95,6 +96,7 @@ module system (
 	localparam LCD_FEEDBACK_PASSWORD = 4'd9;
 	localparam LCD_FEEDBACK_SENSITIVITY = 4'd10;
 	localparam LCD_PASSWORDS_DO_NOT_MATCH = 4'd11;
+	
 
 
 	// Keyboard ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,14 +106,29 @@ module system (
 	reg prev_key_pressed = 0;
 
 
+	// Continuity circuit ///////////////
+	wire closed;
+	reg prev_closed = 0;
+	debouncer closed_debouncer (
+		.clk(clk),
+		.rst(rst),
+		.raw(closed_raw),
+		.clean(closed)
+	);
+
+
+
+	// Wating times
+	localparam TIME_LONG_WAIT = 32'd50_000_000;
+	localparam INCORRECT_WAIT = 32'd50_000_000; // 1 second
+	localparam CORRECT_WAIT = 32'd50_000_000; // 1 second
+	localparam INCORRECT_WAIT_NO_TRIES = 32'd500_000_000; // 10 second
+	localparam TIME_BREAK_ALARM = 32'd500_000_000; // 10 second
+	localparam MAX_TIME_ALARM = {32{1'b1}}; // ~ 86 seconds 
+
 	// Other registers
-	localparam INITIAL_WAIT = 29'd50_000_000;
-	localparam INCORRECT_WAIT = 29'd50_000_000; // 1 second
-	localparam CORRECT_WAIT = 29'd50_000_000; // 1 second
-	localparam INCORRECT_WAIT_NO_TRIES = 29'd500_000_000; // 10 second
 
-
-	reg [28:0] counter = 0;
+	reg [31:0] counter = 0;
 
 	reg [1:0] current_digit = 0; // Password digit being entered
 	reg [1:0] tries = 2'd3; // Number of tries to enter the password
@@ -119,32 +136,34 @@ module system (
 
 	
 
-	// STATE
-	localparam INIT0 = 5'd0;
-	localparam INIT1 = 5'd1;
-	localparam INIT2 = 5'd2;
+	// STATES /////////////////////////////////////////////////////////////////////////////////////////////
+	localparam LONG_WAIT = 5'd0;
+	localparam INIT0 = 5'd1;
+	localparam INIT1 = 5'd2;
 	localparam WAIT  = 5'd3;
 	localparam LOCKED_IDLE = 5'd4;
-	localparam UNLOCKED_IDLE_SELECTION   = 5'd5;
-	localparam UNLOCKED_IDLE_SENSITIVITY = 5'd6;
-	localparam SHOW_NEW_SENSITIVITY = 5'd7;
-	localparam SAVE_SENSITIVITY = 5'd8;
-	localparam UNLOCKED_IDLE_SET_PASSWORD = 5'd9;
-	localparam CONFIRM_PASSWORD = 5'd10;
-	localparam VERIFY_NEW_PASSWORD = 5'd11;
-	localparam NEW_PASSWORD_FEEDBACK = 5'd12;
-	localparam CHECK_PASSWORD = 5'd13;
-	localparam CORRECT   = 5'd14;
-	localparam INCORRECT = 5'd15;
+	localparam CIRCUIT_BROKEN = 5'd5;
+	localparam UNLOCKED_IDLE_SELECTION   = 5'd6;
+	localparam UNLOCKED_IDLE_SENSITIVITY = 5'd7;
+	localparam SHOW_NEW_SENSITIVITY = 5'd8;
+	localparam SAVE_SENSITIVITY = 5'd9;
+	localparam UNLOCKED_IDLE_SET_PASSWORD = 5'd10;
+	localparam CONFIRM_PASSWORD = 5'd11;
+	localparam VERIFY_NEW_PASSWORD = 5'd12;
+	localparam NEW_PASSWORD_FEEDBACK = 5'd13;
+	localparam CHECK_PASSWORD = 5'd14;
+	localparam CORRECT   = 5'd15;
+	localparam INCORRECT = 5'd16;
 
 
-	reg [4:0] state = INIT0;
+
+	reg [4:0] state = LONG_WAIT;
 	reg [4:0] next_state = INIT0;
 
 
 	// DEBUG CLK
 	reg clk_debug = 0;
-	localparam CLK_DEBUG_DIV = 25_000_000; // 1 second
+	localparam CLK_DEBUG_DIV = 25'd25_000_000; // 1 second
 	reg [24:0] clk_debug_counter = 0;
 	always @(posedge clk) begin
 		if (clk_debug_counter >= CLK_DEBUG_DIV) begin
@@ -160,7 +179,8 @@ module system (
 
 	always @(posedge clk or posedge rst) begin
 		if (rst) begin
-			state <= INIT0;
+			state <= LONG_WAIT;
+			next_state <= INIT0;
 			counter <= 0;
 			current_digit <= 0;
 			tries <= 2'd3;
@@ -168,37 +188,41 @@ module system (
 			i2c_enable <= 1'b0;
 			lcd_instruction <= LCD_TURN_OFF;
 			lcd_enable <= 1'b1;
-
+			alarm <= 1'b0;
 
 		end
 		else begin
 			prev_key_pressed <= key_pressed;
+			prev_closed <= closed;
+			prev_manipulation <= manipulation;
 
 			case(state)
-				INIT0: begin // Wait for stabilization
+
+				LONG_WAIT: begin
 					i2c_enable <= 1'b0;
 					lcd_enable <= 1'b0;
 
-					if (counter > INITIAL_WAIT) begin
-						state <= INIT1;
+					if (counter > TIME_LONG_WAIT) begin
+						state <= next_state;
 						counter <= 0;
 					end else begin
 						counter <= counter + 1'b1;
 					end
 				end
 
-				INIT1: begin // Initialize eeprom, load password, load sensitivity
+				INIT0: begin // Initialize eeprom, load password, load sensitivity
 					if (~i2c_busy && lcd_done) begin
 						i2c_command <= I2C_INIT;
 						i2c_enable <= 1'b1;
 						state <= WAIT;
-						next_state <= INIT2;
+						next_state <= INIT1;
 					end
 				end
 
-				INIT2: begin // Set display according to the state of the system (locked or unlocked)
+				INIT1: begin // Set display according to the state of the system (locked or unlocked)
 					sensitivity_temp <= sensitivity;
-					state <= WAIT;
+					state <= LONG_WAIT; // To stabilize the system 
+					counter <= 0;
 					current_digit <= 0;
 					lcd_enable <= 1'b1;
 					lcd_data <= "____";
@@ -221,73 +245,122 @@ module system (
 
 
 				LOCKED_IDLE: begin // Here the user can enter the password to unlock the system
-					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
-						
-						if (key == 4'd11) begin // '#' key to delete 
-							lcd_instruction <= LCD_AUTHENTICATE;
-							lcd_enable <= 1'b1;
-							state <= WAIT;
-							next_state <= LOCKED_IDLE;
-							case (current_digit)
-								2'd0: lcd_data <= "____";
-								2'd1:  begin 
-									lcd_data <= "____";
-									current_digit <= 2'd0;
-								end
-								2'd2: begin 
-									lcd_data <= "#___";
-									current_digit <= 2'd1;
-								end
-								2'd3: begin 
-									lcd_data <= "##__";
-									current_digit <= 2'd2;
-								end
-							endcase
 
-						end else if (key == 4'd10) begin // '*' Delete all
-							lcd_instruction <= LCD_AUTHENTICATE;
-							lcd_enable <= 1'b1;
-							state <= WAIT;
-							next_state <= LOCKED_IDLE;
-							lcd_data <= "____";
-							current_digit <= 0;
-						end else begin // A number key has been pressed
-							// Password input is stored in pass_sens_in
-							lcd_instruction <= LCD_AUTHENTICATE;
-							lcd_enable <= 1'b1;
-							state <= WAIT;
-							next_state <= LOCKED_IDLE;
-							case (current_digit)
-								2'd0: begin
-									pass_sens_in[15:12] <= key;
-									lcd_data <= "#___";
-									current_digit <= 2'd1;
-								end
-								2'd1: begin
-									pass_sens_in[11:8] <= key;
-									lcd_data <= "##__";
-									current_digit <= 2'd2;
-								end
-								2'd2: begin
-									pass_sens_in[7:4] <= key;
-									lcd_data <= "###_";
-									current_digit <= 2'd3;
-								end
-								2'd3: begin
-									pass_sens_in[3:0] <= key;
-									lcd_enable <= 1'b0;
-									state <= CHECK_PASSWORD;
-								end
-							endcase
+					
+
+
+					if ((prev_closed & ~closed) | (prev_manipulation & ~manipulation)) begin // Break or manipulation
+						alarm <= 1'b1;
+						lcd_instruction <= LCD_INCORRECT;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= CIRCUIT_BROKEN;
+						counter <= 0;
+					end
+					else begin
+						if (alarm) begin // if the alarm has been sounded for too much time
+							if (counter == MAX_TIME_ALARM) begin
+								alarm <= 1'b0;
+								counter <= 0;
+							end
+							else begin
+								counter <= counter + 1'b1;
+							end
+						end
+
+						if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+							
+							if (key == 4'd11) begin // '#' key to delete 
+								lcd_instruction <= LCD_AUTHENTICATE;
+								lcd_enable <= 1'b1;
+								state <= WAIT;
+								next_state <= LOCKED_IDLE;
+								case (current_digit)
+									2'd0: lcd_data <= "____";
+									2'd1:  begin 
+										lcd_data <= "____";
+										current_digit <= 2'd0;
+									end
+									2'd2: begin 
+										lcd_data <= "#___";
+										current_digit <= 2'd1;
+									end
+									2'd3: begin 
+										lcd_data <= "##__";
+										current_digit <= 2'd2;
+									end
+								endcase
+
+							end else if (key == 4'd10) begin // '*' Delete all
+								lcd_instruction <= LCD_AUTHENTICATE;
+								lcd_enable <= 1'b1;
+								state <= WAIT;
+								next_state <= LOCKED_IDLE;
+								lcd_data <= "____";
+								current_digit <= 0;
+							end else begin // A number key has been pressed
+								// Password input is stored in pass_sens_in
+								lcd_instruction <= LCD_AUTHENTICATE;
+								lcd_enable <= 1'b1;
+								state <= WAIT;
+								next_state <= LOCKED_IDLE;
+								case (current_digit)
+									2'd0: begin
+										pass_sens_in[15:12] <= key;
+										lcd_data <= "#___";
+										current_digit <= 2'd1;
+									end
+									2'd1: begin
+										pass_sens_in[11:8] <= key;
+										lcd_data <= "##__";
+										current_digit <= 2'd2;
+									end
+									2'd2: begin
+										pass_sens_in[7:4] <= key;
+										lcd_data <= "###_";
+										current_digit <= 2'd3;
+									end
+									2'd3: begin
+										pass_sens_in[3:0] <= key;
+										lcd_enable <= 1'b0;
+										state <= CHECK_PASSWORD;
+									end
+								endcase
+							end
 						end
 					end
+
 				end
 
+
+				CIRCUIT_BROKEN: begin // Circuit has been broken
+					alarm <= 1'b1;
+					tries <= 2'd0;
+					if (counter > TIME_BREAK_ALARM) begin
+						lcd_instruction <= LCD_AUTHENTICATE;
+						lcd_data <= "____";
+						current_digit <= 0;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= LOCKED_IDLE;
+						counter <= 0;
+					end else begin
+						counter <= counter + 1'b1;
+					end
+				end
 
 				UNLOCKED_IDLE_SELECTION: begin // Selection between set sensitivity or set password
 					alarm <= 1'b0; // Reset alarm
 					tries <= 2'd3; // Reset tries
-					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+					if (closed & ~prev_closed) begin // Lock the system
+						lcd_instruction <= LCD_AUTHENTICATE;
+						lcd_data <= "____";
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= LOCKED_IDLE;
+						current_digit <= 0;
+					end
+					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
 						if (key == 4'd10 || key == 4'd11) begin // '*' or '#' Switch password/sensitivity
 							lcd_enable <= 1'b1;
 							state <= WAIT;
@@ -319,7 +392,15 @@ module system (
 				UNLOCKED_IDLE_SENSITIVITY: begin // Set sensitivity
 					alarm <= 1'b0; // Reset alarm
 					tries <= 2'd3; // Reset tries
-					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+					if (closed & ~prev_closed) begin // Lock the system
+						lcd_instruction <= LCD_AUTHENTICATE;
+						lcd_data <= "____";
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= LOCKED_IDLE;
+						current_digit <= 0;
+					end
+					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
 						if (key == 4'd10) begin // '*' Cancel and return to selection
 							sensitivity_temp <= sensitivity;
 							lcd_instruction <= LCD_SELECT_SENSITIVITY;
@@ -384,7 +465,15 @@ module system (
 				UNLOCKED_IDLE_SET_PASSWORD: begin // Change password
 					alarm <= 1'b0; // Reset alarm
 					tries <= 2'd3; // Reset tries
-					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+					if (closed & ~prev_closed) begin // Lock the system
+						lcd_instruction <= LCD_AUTHENTICATE;
+						lcd_data <= "____";
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= LOCKED_IDLE;
+						current_digit <= 0;
+					end
+					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
 						if (key == 4'd11) begin // '#' key to delete
 							lcd_instruction <= LCD_SET_PASSWORD;
 							lcd_enable <= 1'b1;
@@ -448,7 +537,15 @@ module system (
 				CONFIRM_PASSWORD: begin // Confirm new password
 					alarm <= 1'b0; // Reset alarm
 					tries <= 2'd3; // Reset tries
-					if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+					if (closed & ~prev_closed) begin // Lock the system
+						lcd_instruction <= LCD_AUTHENTICATE;
+						lcd_data <= "____";
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= LOCKED_IDLE;
+						current_digit <= 0;
+					end
+					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
 						if (key == 4'd11) begin // '#' key to delete
 							lcd_instruction <= LCD_CONFIRM_PASSWORD;
 							lcd_enable <= 1'b1;
@@ -610,6 +707,9 @@ module system (
 		
 		
 	end
+
+
+
 
 
 	i2c_driver i2c_driver_inst (
