@@ -27,7 +27,7 @@ module system (
 	output [3:0] leds
 	);
 
-	assign leds = ~{error, i2c_busy, manipulation, alarm};
+	assign leds = ~{error, key_pressed, manipulation, alarm};
 
 	wire rst = ~rst_in;
 
@@ -125,6 +125,7 @@ module system (
 	localparam INCORRECT_WAIT_NO_TRIES = 32'd500_000_000; // 10 second
 	localparam TIME_BREAK_ALARM = 32'd500_000_000; // 10 second
 	localparam MAX_TIME_ALARM = {32{1'b1}}; // ~ 86 seconds 
+	localparam MX_TIME_AWAKE = 32'd500_000_000; // 10 seconds, time to wait before going to sleep
 
 	// Other registers
 
@@ -132,6 +133,8 @@ module system (
 
 	reg [1:0] current_digit = 0; // Password digit being entered
 	reg [1:0] tries = 2'd3; // Number of tries to enter the password
+
+	reg [28:0] slp_counter = 0; // Counter to go to sleep after a while of inactivity
 
 
 	
@@ -154,6 +157,7 @@ module system (
 	localparam CHECK_PASSWORD = 5'd14;
 	localparam CORRECT   = 5'd15;
 	localparam INCORRECT = 5'd16;
+	localparam SLEEP = 5'd17;
 
 
 
@@ -246,8 +250,6 @@ module system (
 
 				LOCKED_IDLE: begin // Here the user can enter the password to unlock the system
 
-					
-
 
 					if ((prev_closed & ~closed) | (prev_manipulation & ~manipulation)) begin // Break or manipulation
 						alarm <= 1'b1;
@@ -267,9 +269,11 @@ module system (
 								counter <= counter + 1'b1;
 							end
 						end
+						
 
 						if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
-							
+							slp_counter <= 0; // Reset sleep counter
+
 							if (key == 4'd11) begin // '#' key to delete 
 								lcd_instruction <= LCD_AUTHENTICATE;
 								lcd_enable <= 1'b1;
@@ -327,6 +331,16 @@ module system (
 									end
 								endcase
 							end
+						end
+						else if (slp_counter >= MX_TIME_AWAKE) begin // If the user has not pressed any key for a while, go to sleep
+							lcd_instruction <= LCD_TURN_OFF;
+							lcd_enable <= 1'b1;
+							state <= WAIT;
+							next_state <= SLEEP;
+							slp_counter <= 0;
+							counter <= 0;
+						end else begin
+							slp_counter <= slp_counter + 1'b1;
 						end
 					end
 
@@ -699,6 +713,42 @@ module system (
 					end else begin
 						counter <= counter + 1'b1;
 					end
+				end
+
+
+
+				SLEEP: begin
+					if ((prev_closed & ~closed) | (prev_manipulation & ~manipulation)) begin // Break or manipulation
+						alarm <= 1'b1;
+						lcd_instruction <= LCD_INCORRECT;
+						lcd_enable <= 1'b1;
+						state <= WAIT;
+						next_state <= CIRCUIT_BROKEN;
+						counter <= 0;
+					end
+					else begin
+						
+						if (alarm) begin // if the alarm has been sounded for too much time
+							if (counter == MAX_TIME_ALARM) begin
+								alarm <= 1'b0;
+								counter <= 0;
+							end
+							else begin
+								counter <= counter + 1'b1;
+							end
+						end
+
+						if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+							lcd_instruction <= LCD_AUTHENTICATE;
+							lcd_data <= "____";
+							lcd_enable <= 1'b1;
+							state <= WAIT;
+							next_state <= LOCKED_IDLE;
+							current_digit <= 0;
+						end
+					end
+
+					
 				end
 
 			endcase

@@ -5,20 +5,32 @@ module lcd (
 	input enable,
 	input is_command,
 	
-	output reg rs = 0,
-	output reg e = 0,
-	output reg [3:0] d = 0,
+	output wire rs_out,
+	output wire e_out,
+	output wire [3:0] d_out,
 	output wire ready,
 
 	// Debug
 	output wire [3:0] current_state
 );
 	
-	assign current_state = {awake, enable, ready, e};
+	assign current_state = {awake, enable, ready, e_out};
 	// assign current_state = state;
 
 	reg prev_awake = 0;
 	reg prev_enable = 0;
+
+	
+	reg rs = 0;
+	reg e = 0;
+	reg [3:0] d = 0;
+
+    // Salidas alta impedancia
+	assign rs_out = awake ? rs : 1'bz;
+	assign e_out = awake ? e : 1'bz;
+	assign d_out = awake ? d : 4'bzzzz;
+
+	
 
 	
 	

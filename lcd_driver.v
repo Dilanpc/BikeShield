@@ -434,24 +434,26 @@ module lcd_driver (
 							5'd11: lcd_data <= "O";
 							5'd12: lcd_data <= "R";
 							5'd13: lcd_data <= "D";
-							5'd14: begin
+							5'd14: lcd_data <= " ";
+							5'd15: lcd_data <= 8'h7F;
+							5'd16: begin
 								lcd_data <= 8'hC0; // Set position
 								is_command <= 1'b1;
 							end
-							5'd15: lcd_data <= "*";
-							5'd16: begin
+							5'd17: lcd_data <= "*";
+							5'd18: begin
 								lcd_data <= 8'hC6; // Set position
 								is_command <= 1'b1;
 							end
-							5'd17: lcd_data <= data[31:24]; // First character
-							5'd18: lcd_data <= data[23:16]; // Second character
-							5'd19: lcd_data <= data[15:8]; // Third character
-							5'd20: lcd_data <= data[7:0]; // Fourth character
-							5'd21: begin
+							5'd19: lcd_data <= data[31:24]; // First character
+							5'd20: lcd_data <= data[23:16]; // Second character
+							5'd21: lcd_data <= data[15:8]; // Third character
+							5'd22: lcd_data <= data[7:0]; // Fourth character
+							5'd23: begin
 								lcd_data <= 8'hCF; // Set position
 								is_command <= 1'b1;
 							end
-							5'd22: begin 
+							5'd24: begin 
 								lcd_data <= "#";
 								counter <= 0;
 								next_state <= IDLE;
@@ -763,9 +765,9 @@ module lcd_driver (
 		.enable(lcd_enable),
 		.is_command(is_command),
 		
-		.rs(rs),
-		.e(e),
-		.d(d),
+		.rs_out(rs),
+		.e_out(e),
+		.d_out(d),
 		.ready(ready),
 		.current_state(lcd_state)
 	);
