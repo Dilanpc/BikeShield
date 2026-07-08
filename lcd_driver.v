@@ -27,15 +27,9 @@ module lcd_driver (
 	output wire rs,
 	output wire e,
 	output wire [3:0] d,
-	output reg awake = 0,
-	// Debug
-	output wire [3:0] current_state,
-	output wire [3:0] lcd_state
-
+	output reg awake = 0
 
 	);
-
-	assign current_state = state;
 
 	
 	reg [7:0] lcd_data;
@@ -768,8 +762,7 @@ module lcd_driver (
 		.rs_out(rs),
 		.e_out(e),
 		.d_out(d),
-		.ready(ready),
-		.current_state(lcd_state)
+		.ready(ready)
 	);
 	
 endmodule

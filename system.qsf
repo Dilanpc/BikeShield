@@ -96,7 +96,6 @@ set_location_assignment PIN_113 -to col[1]
 set_location_assignment PIN_112 -to col[2]
 set_global_assignment -name VERILOG_FILE i2c_driver.v
 set_global_assignment -name VERILOG_FILE lcd_driver.v
-set_global_assignment -name VERILOG_FILE tests.v
 set_location_assignment PIN_34 -to lcd_d[0]
 set_location_assignment PIN_39 -to lcd_d[1]
 set_location_assignment PIN_43 -to lcd_d[2]

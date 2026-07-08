@@ -24,12 +24,11 @@ module system (
 	output wire error,
 
 	output wire [6:0] segmentos,
-	output wire [3:0] power,
-
-	output [3:0] leds
+	output wire [3:0] power
+	
 	);
 
-	assign leds = ~{power_on, key_pressed, manipulation, alarm};
+
 
 	wire rst = ~rst_in;
 

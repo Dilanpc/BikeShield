@@ -32,14 +32,8 @@ module i2c_driver(
 	output error,
 	output wire ackled
 
-	// Debug
-	// output wire [3:0] leds,
-	// output wire [15:0] accX_diff_db
 	);
 
-	// assign accX_diff_db = accX_diff;
-
-	
 
 
 

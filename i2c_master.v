@@ -18,16 +18,8 @@ module i2c_master (
 	output reg ack = 0,
 	output reg error = 0,
 	output wire busy
-	
-	// output wire [3:0] leds // Debug
 
 	);
-	
-	// Debug
-	// assign leds[3] = ~scl;
-	// assign leds[2] = ~sda;
-	// assign leds[1] = ~start;
-	// assign leds[0] = ~busy;
 	
 	
 	reg prev_start = 0;

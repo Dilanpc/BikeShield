@@ -32,13 +32,9 @@ module eeprom_driver (
 	output reg [15:0] password_out = 0, // 4 digits password (decimal)
 	output reg [2:0] sensitivity_out = 0 // Sensitivity value (0 to 7)
 
-	// Debug
-	// output wire [3:0] leds
-
 	);
-	// Debug
-	// assign leds = {~i2c_busy, ~state};
-
+	
+	
 	// Dirección de memoria donde se guarda la contraseña (928 = 0x03A0)
 	// Correspondiente a la página 29 de la memoria eeprom
 	localparam PASSWORD_ADD = 16'h03A0; // Página 29

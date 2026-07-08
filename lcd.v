@@ -8,14 +8,9 @@ module lcd (
 	output wire rs_out,
 	output wire e_out,
 	output wire [3:0] d_out,
-	output wire ready,
+	output wire ready
 
-	// Debug
-	output wire [3:0] current_state
 );
-	
-	assign current_state = {awake, enable, ready, e_out};
-	// assign current_state = state;
 
 	reg prev_awake = 0;
 	reg prev_enable = 0;
@@ -42,14 +37,6 @@ module lcd (
 	localparam MICRO_40 = 20'd2_000;
 	localparam MILLI_2 = 20'd100_000;
 	
-	// DEBUG
-//	localparam CYCLES_INIT_WAIT_0 = 5; 
-//	localparam CYCLES_INIT_WAIT_1 = 5; 
-//	localparam CYCLES_INIT_WAIT_2 = 5; 
-//	localparam MICRO_1 = 1;
-//	localparam MICRO_40 = 3;
-//	localparam MILLI_2 = 5;
-	////////
 
 
 	localparam IDLE       = 4'd0;

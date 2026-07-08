@@ -35,16 +35,9 @@ module mpu_driver (
 	output reg [15:0] accelY,
 	output reg [15:0] accelZ
 
-	// Debug
-	// output wire [3:0] leds
-
 	);
 
-	// Debug
-	// assign leds = ~current_read_byte[3:0];
 
-
-	
 	localparam NO_APPLY = 3'd7; // Master entiende 7 como "no aplicar restart" o "no aplicar lectura"
 	
 	
