@@ -19,6 +19,8 @@ module system (
 	input wire closed_raw, // If the continuity circuit is closed, the system is locked
 	output reg alarm, // To activate the buzzer when the system is manipulated
 
+	output reg power_on = 1'b1, // Controls the power to the system, if 0, the system is off
+
 	output wire error,
 
 	output wire [6:0] segmentos,
@@ -27,7 +29,7 @@ module system (
 	output [3:0] leds
 	);
 
-	assign leds = ~{error, key_pressed, manipulation, alarm};
+	assign leds = ~{power_on, key_pressed, manipulation, alarm};
 
 	wire rst = ~rst_in;
 
@@ -125,7 +127,9 @@ module system (
 	localparam INCORRECT_WAIT_NO_TRIES = 32'd500_000_000; // 10 second
 	localparam TIME_BREAK_ALARM = 32'd500_000_000; // 10 second
 	localparam MAX_TIME_ALARM = {32{1'b1}}; // ~ 86 seconds 
-	localparam MX_TIME_AWAKE = 32'd500_000_000; // 10 seconds, time to wait before going to sleep
+	localparam MAX_TIME_AWAKE = 30'd500_000_000; // 10 seconds, time to wait before going to sleep when the system is locked
+	localparam TIME_TO_SHUT_DOWN = 30'd1_000_000; // 20 seconds, time to wait before shutting down the system when it is unlocked
+
 
 	// Other registers
 
@@ -134,7 +138,7 @@ module system (
 	reg [1:0] current_digit = 0; // Password digit being entered
 	reg [1:0] tries = 2'd3; // Number of tries to enter the password
 
-	reg [28:0] slp_counter = 0; // Counter to go to sleep after a while of inactivity
+	reg [29:0] power_counter = 0; // Counter to go to sleep after a while of inactivity
 
 
 	
@@ -158,6 +162,7 @@ module system (
 	localparam CORRECT   = 5'd15;
 	localparam INCORRECT = 5'd16;
 	localparam SLEEP = 5'd17;
+
 
 
 
@@ -193,6 +198,7 @@ module system (
 			lcd_instruction <= LCD_TURN_OFF;
 			lcd_enable <= 1'b1;
 			alarm <= 1'b0;
+			power_on <= 1'b1;
 
 		end
 		else begin
@@ -272,7 +278,7 @@ module system (
 						
 
 						if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
-							slp_counter <= 0; // Reset sleep counter
+							power_counter <= 0; // Reset power counter
 
 							if (key == 4'd11) begin // '#' key to delete 
 								lcd_instruction <= LCD_AUTHENTICATE;
@@ -332,15 +338,15 @@ module system (
 								endcase
 							end
 						end
-						else if (slp_counter >= MX_TIME_AWAKE) begin // If the user has not pressed any key for a while, go to sleep
+						else if (power_counter >= MAX_TIME_AWAKE) begin // If the user has not pressed any key for a while, go to sleep
 							lcd_instruction <= LCD_TURN_OFF;
 							lcd_enable <= 1'b1;
 							state <= WAIT;
 							next_state <= SLEEP;
-							slp_counter <= 0;
+							power_counter <= 0;
 							counter <= 0;
 						end else begin
-							slp_counter <= slp_counter + 1'b1;
+							power_counter <= power_counter + 1'b1;
 						end
 					end
 
@@ -375,6 +381,8 @@ module system (
 						current_digit <= 0;
 					end
 					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+						power_counter <= 0; // Reset power counter
+
 						if (key == 4'd10 || key == 4'd11) begin // '*' or '#' Switch password/sensitivity
 							lcd_enable <= 1'b1;
 							state <= WAIT;
@@ -400,6 +408,12 @@ module system (
 							end
 						end
 					end
+					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
+						power_counter <= 0;
+						power_on <= 1'b0; // Turn off the system
+					end else begin
+						power_counter <= power_counter + 1'b1;
+					end
 				end
 
 
@@ -415,6 +429,8 @@ module system (
 						current_digit <= 0;
 					end
 					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+						power_counter <= 0; // Reset power counter
+
 						if (key == 4'd10) begin // '*' Cancel and return to selection
 							sensitivity_temp <= sensitivity;
 							lcd_instruction <= LCD_SELECT_SENSITIVITY;
@@ -452,6 +468,13 @@ module system (
 							end
 						end
 					end
+
+					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
+						power_counter <= 0;
+						power_on <= 1'b0; // Turn off the system
+					end else begin
+						power_counter <= power_counter + 1'b1;
+					end
 				end
 
 				SHOW_NEW_SENSITIVITY: begin // Show new sensitivity
@@ -488,6 +511,8 @@ module system (
 						current_digit <= 0;
 					end
 					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+						power_counter <= 0; // Reset power counter
+
 						if (key == 4'd11) begin // '#' key to delete
 							lcd_instruction <= LCD_SET_PASSWORD;
 							lcd_enable <= 1'b1;
@@ -546,6 +571,13 @@ module system (
 							endcase
 						end
 					end
+
+					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
+						power_counter <= 0;
+						power_on <= 1'b0; // Turn off the system
+					end else begin
+						power_counter <= power_counter + 1'b1;
+					end
 				end
 
 				CONFIRM_PASSWORD: begin // Confirm new password
@@ -560,6 +592,8 @@ module system (
 						current_digit <= 0;
 					end
 					else if (key_pressed && ~prev_key_pressed) begin // A key has just been pressed
+						power_counter <= 0; // Reset power counter
+
 						if (key == 4'd11) begin // '#' key to delete
 							lcd_instruction <= LCD_CONFIRM_PASSWORD;
 							lcd_enable <= 1'b1;
@@ -617,6 +651,13 @@ module system (
 								end
 							endcase
 						end
+					end
+
+					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
+						power_counter <= 0;
+						power_on <= 1'b0; // Turn off the system
+					end else begin
+						power_counter <= power_counter + 1'b1;
 					end
 				end
 
