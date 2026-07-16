@@ -19,7 +19,7 @@ module system (
 	input wire closed_raw, // If the continuity circuit is closed, the system is locked
 	output reg alarm, // To activate the buzzer when the system is manipulated
 
-	output reg power_on = 1'b1, // Controls the power to the system, if 0, the system is off
+	output reg power_off = 1'b0, // Controls the power to the system, if 0, the system is off
 
 	output wire error,
 
@@ -197,7 +197,7 @@ module system (
 			lcd_instruction <= LCD_TURN_OFF;
 			lcd_enable <= 1'b1;
 			alarm <= 1'b0;
-			power_on <= 1'b1;
+			power_off <= 1'b0;
 
 		end
 		else begin
@@ -409,7 +409,7 @@ module system (
 					end
 					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
 						power_counter <= 0;
-						power_on <= 1'b0; // Turn off the system
+						power_off <= 1'b1; // Turn off the system
 					end else begin
 						power_counter <= power_counter + 1'b1;
 					end
@@ -470,7 +470,7 @@ module system (
 
 					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
 						power_counter <= 0;
-						power_on <= 1'b0; // Turn off the system
+						power_off <= 1'b1; // Turn off the system
 					end else begin
 						power_counter <= power_counter + 1'b1;
 					end
@@ -573,7 +573,7 @@ module system (
 
 					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
 						power_counter <= 0;
-						power_on <= 1'b0; // Turn off the system
+						power_off <= 1'b1; // Turn off the system
 					end else begin
 						power_counter <= power_counter + 1'b1;
 					end
@@ -654,7 +654,7 @@ module system (
 
 					else if (power_counter >= TIME_TO_SHUT_DOWN) begin // If the user has not pressed any key for a while, go to sleep
 						power_counter <= 0;
-						power_on <= 1'b0; // Turn off the system
+						power_off <= 1'b1; // Turn off the system
 					end else begin
 						power_counter <= power_counter + 1'b1;
 					end

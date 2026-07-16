@@ -63,10 +63,6 @@ set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf
 set_global_assignment -name VERILOG_FILE debouncer.v
 set_global_assignment -name VERILOG_FILE hex_to_7seg.v
 set_global_assignment -name VERILOG_FILE lcd.v
-set_location_assignment PIN_11 -to leds[3]
-set_location_assignment PIN_10 -to leds[2]
-set_location_assignment PIN_7 -to leds[1]
-set_location_assignment PIN_3 -to leds[0]
 set_location_assignment PIN_23 -to clk
 set_global_assignment -name VERILOG_FILE i2c_master.v
 set_location_assignment PIN_110 -to scl
