@@ -19,10 +19,10 @@
 - [X] Controlador
 
 #### Contrucción física
-- [ ] Diseño CAD
-- [ ] Impresión 3D
-- [ ] Diseño PCB
-- [ ] Impresión de circuito
+- [X] Diseño CAD
+- [X] Impresión 3D
+- [X] Diseño PCB
+- [X] Impresión de circuito
 
 
 
